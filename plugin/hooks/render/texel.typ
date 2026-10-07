@@ -27,7 +27,8 @@
 // and gets cut. Off for typst blocks, whose prose needs typst's line metrics.
 #let setup(body, ink: true) = {
   set page(width: auto, height: auto, margin: 0pt, fill: none)
-  set text(fill: rgb("#" + input("foreground")), size: size)
+  // Measuring passes no colour: ink has none.
+  set text(fill: rgb("#" + sys.inputs.at("foreground", default: "000000")), size: size)
   set text(top-edge: "bounds", bottom-edge: "bounds") if ink
   set par(justify: true)
   body

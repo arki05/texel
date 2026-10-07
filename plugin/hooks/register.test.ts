@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
-// The first 24 bytes of a PNG: enough for the pipeline to read its size.
+// The first 24 bytes of a PNG: enough for the renderer to read its size.
 function fakePng(width: number, height: number) {
   const bytes = new Uint8Array(24)
   const view = new DataView(bytes.buffer)

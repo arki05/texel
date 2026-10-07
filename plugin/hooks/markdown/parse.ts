@@ -1,5 +1,5 @@
 // Splits an assistant reply's markdown into what the engine can draw as-is and
-// what the render pipeline should turn into pictures. Pure: no `$`, no I/O.
+// what texel should turn into pictures. Pure: no `$`, no I/O.
 
 export type Atom =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean; code?: boolean }
@@ -178,7 +178,7 @@ export function parse(text: string): Segment[] {
   return out
 }
 
-/** Whether anything in `segments` needs the pipeline. */
+/** Whether anything in `segments` needs rendering. */
 export function needsRender(segments: Segment[]) {
   return segments.some(s => s.kind !== 'markdown')
 }

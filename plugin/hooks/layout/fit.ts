@@ -3,10 +3,7 @@
 // so the formula keeps its size and the rows around the text make room.
 // Pure: points and cells in, a placement out.
 
-import type { Ink } from '../render/pipeline'
-
-/** The terminal's cell, in points, and its baseline as a fraction of a row. */
-export type Grid = { cellWidth: number; cellHeight: number; baseline: number }
+import type { Grid, Ink, Placement } from '../render/typst'
 
 /** The person's settings (plugin.json `userConfig`); scales of natural size, shifts in rows. */
 export type FitOptions = {
@@ -29,10 +26,8 @@ export type InlineFit = {
   /** Rows added above and below the text's row. */
   above: number
   below: number
-  scale: number
-  /** How far below the top of its box the formula's ink starts, in points. */
-  dy: number
-  columns: number
+  /** The formula's box, `1 + above + below` rows tall, and how it sits in it. */
+  placement: Placement
 }
 
 /** Past this many extra rows, the formula shrinks instead. */
@@ -55,7 +50,8 @@ function place(ink: Ink, grid: Grid, options: FitOptions, maxColumns: number, ab
   )
   // On the baseline where the box allows, else as near to it as it does.
   const dy = Math.min(Math.max(baseline - ink.above * scale, 0), height - total * scale)
-  return { above, below, scale, dy, columns: Math.max(1, Math.ceil((ink.width * scale) / cw)) }
+  const columns = Math.max(1, Math.ceil((ink.width * scale) / cw))
+  return { above, below, placement: { columns, rows: 1 + above + below, scale, dy } }
 }
 
 // The ways to share `extra` rows, best first: alternating, one above first
@@ -79,8 +75,8 @@ export function fitInline(ink: Ink, grid: Grid, maxColumns: number, options: Fit
   for (let extra = 0; extra <= MAX_EXTRA_ROWS; extra++) {
     for (const [above, below] of splits(extra)) {
       const fit = place(ink, grid, options, maxColumns, above, below)
-      if (fit.scale >= enough) return fit
-      if (!best || fit.scale > best.scale) best = fit
+      if (fit.placement.scale >= enough) return fit
+      if (!best || fit.placement.scale > best.placement.scale) best = fit
     }
   }
   return best!
