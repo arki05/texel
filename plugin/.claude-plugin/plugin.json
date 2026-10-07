@@ -1,0 +1,6 @@
+{
+  "name": "texel",
+  "version": "0.1.0",
+  "description": "Renders math, typst and diagrams inline in the Claude Code transcript",
+  "author": { "name": "Julius Arkenberg", "email": "julius@rkenberg.de" }
+}
