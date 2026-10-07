@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { program, widthFree, type Style } from './typst'
+import { importsPackage, program, widthFree, type Style } from './typst'
 
 const style: Style = {
   grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 },
@@ -41,5 +41,14 @@ describe('program', () => {
   test('inline math is set at its own scale, everything else at the text size', () => {
     expect(program({ kind: 'inline', tex: 'x', placement }, style).inputs.scale).toBe('1.2')
     expect(program({ kind: 'display', tex: 'x' }, style).inputs.scale).toBe('1')
+  })
+})
+
+describe('importsPackage', () => {
+  test('a package import or include is one; local files and plain text are not', () => {
+    expect(importsPackage('#import "@preview/cetz:0.4.2"\n#cetz.canvas({})')).toBe(true)
+    expect(importsPackage('#include "@local/notes:0.1.0"')).toBe(true)
+    expect(importsPackage('#import "util.typ": *')).toBe(false)
+    expect(importsPackage('mail me at "@preview/x" later')).toBe(false)
   })
 })

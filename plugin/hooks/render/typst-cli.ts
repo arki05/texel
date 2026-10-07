@@ -43,7 +43,8 @@ export function cliCompiler({ run, limiter, lib, version, library }: CliOptions)
     ppi: PPI,
 
     async compile(program, out) {
-      const argv = ['typst', 'compile', ...flags(lib, program), '--ppi', String(PPI), '-', out]
+      // The format said, not read off `out`, which may be a temporary name.
+      const argv = ['typst', 'compile', ...flags(lib, program), '--format', 'png', '--ppi', String(PPI), '-', out]
       const result = await limiter.run(() => run(argv, program.source))
       return result.exitCode === 0 ? undefined : complaint(result.stderr)
     },

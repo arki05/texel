@@ -4,7 +4,7 @@
 import type { RenderElement } from 'claude-code'
 
 import { isFailure, reason } from '../render/result'
-import type { DrawJob } from '../render/typst'
+import { importsPackage, type DrawJob } from '../render/typst'
 import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
 
 /**
@@ -13,6 +13,9 @@ import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
  */
 export async function drawBlock(ctx: ViewContext, job: DrawJob, source: string, alt: string): Promise<RenderElement> {
   const { Box, Markdown } = ctx.ui
+  if (job.kind === 'typst' && !ctx.typstPackages && importsPackage(job.typst)) {
+    return sourceWithNote(ctx.ui, source, 'not rendered: it imports a package, and typstPackages is off in /config')
+  }
   const drawn = await readyOr(
     ctx,
     () => ctx.renderer.known.picture(job),

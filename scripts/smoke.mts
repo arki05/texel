@@ -6,7 +6,7 @@
 //   npx tsx scripts/smoke.mts
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -29,6 +29,7 @@ const renderer = createRenderer({
     readText: async path => readFileSync(path, 'utf8'),
     writeText: async (path, text) => writeFileSync(path, text),
     readBase64: async path => readFileSync(path).toString('base64'),
+    rename: async (from, to) => renameSync(from, to),
   },
   compiler: cliCompiler({
     run: async (argv, stdin) => {

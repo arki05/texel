@@ -34,6 +34,13 @@ type Host = { machine: Machine; typst: TypstInstall; systemIsDark: boolean; libr
 let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
 let theme: Promise<Theme> | undefined
+
+// `promise`, forgotten through `forget` should it fail, so the next draw asks
+// again rather than every draw failing until a reload.
+function retried<T>(promise: Promise<T>, forget: () => void) {
+  promise.catch(forget)
+  return promise
+}
 let toldAboutTypst = false
 const cache = new RenderCache()
 // Typst processes at once, across every draw: a reply full of formulas queues rather than floods.
@@ -63,7 +70,8 @@ async function learnHost($: EngineInterface): Promise<Host> {
   ])
   const machine: Machine = { home: home ?? '', os, env: { XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX } }
   await $.process.run(['mkdir', '-p', cacheDir(machine)])
-  void $.process.run(pruneCommand(cacheDir(machine)))
+  // Before any draw: pruning alongside one could remove a picture it just found.
+  await $.process.run(pruneCommand(cacheDir(machine)))
   // Off macOS there is no system appearance to ask; dark is the terminal norm.
   return { machine, typst: typstFrom(version), systemIsDark: os !== 'Darwin' || appearance === 'Dark', library }
 }
@@ -74,6 +82,7 @@ function files($: EngineInterface): Io {
     readText: path => $.fs.read(path),
     writeText: (path, text) => $.fs.write(path, text),
     readBase64: async path => ((await $.fs.read(path, { as: 'bytes' })) as { base64: string }).base64,
+    rename: async (from, to) => void (await $.process.run(['mv', '-f', from, to])),
   }
 }
 
@@ -81,8 +90,9 @@ function files($: EngineInterface): Io {
 function tellAboutTypst($: EngineInterface, typst: TypstInstall) {
   if (toldAboutTypst) return
   toldAboutTypst = true
-  const needed = `typst ${MIN_TYPST.join('.')} or newer`
-  $.ui.toast('missing' in typst ? `texel: typst not found; install ${needed} to render math` : `texel: typst ${typst.version} is too old; install ${needed} to render math`)
+  // typst is looked for once per load, so the way back is a reload.
+  const fix = `install typst ${MIN_TYPST.join('.')} or newer, then /reload-plugins, to render math`
+  $.ui.toast('missing' in typst ? `texel: typst not found; ${fix}` : `texel: typst ${typst.version} is too old; ${fix}`)
 }
 
 /**
@@ -95,7 +105,7 @@ async function prepare(
   settings: Settings,
 ): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
   if (settings.images === 'never') return undefined
-  host ??= learnHost($)
+  host ??= retried(learnHost($), () => (host = undefined))
   const { machine, typst, systemIsDark, library } = await host
   if (settings.images === 'auto' && !showsImages(machine)) return undefined
   if ('missing' in typst || !typst.isSupported) {
@@ -103,7 +113,10 @@ async function prepare(
     return undefined
   }
 
-  theme ??= $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, systemIsDark))
+  theme ??= retried(
+    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, systemIsDark)),
+    () => (theme = undefined),
+  )
   const current = await theme
   const grid = gridFor(settings.font)
   const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
@@ -126,6 +139,7 @@ async function prepare(
     renderer,
     grid,
     fit: settings.fit,
+    typstPackages: settings.typstPackages,
     columns: (e.viewport?.columns ?? 100) - GUTTER,
     redraw: () => $.ui.invalidate('ui.render'),
   }
@@ -159,9 +173,11 @@ export const register: Register = (on, options) => {
     return (await draw($, e, settings, true)) ?? next(e)
   })
 
-  // A new theme: read it again on the next draw.
-  on('config.set', { key: 'theme' }, ($, e, next) => {
+  // A new theme: once it is written, read it again and draw every message in its colours.
+  on('config.set', { key: 'theme' }, async ($, e, next) => {
+    const result = await next(e)
     theme = undefined
-    return next(e)
+    $.ui.invalidate('ui.render')
+    return result
   })
 }

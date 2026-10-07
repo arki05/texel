@@ -1,6 +1,10 @@
 // The person's settings: plugin.json's `userConfig`, edited in /config and
 // stored under `pluginConfigs.texel.options`. Pure: options in, settings out,
 // every value held to a range that cannot break the layout.
+//
+// Claude Code fills in the manifest's defaults before texel reads them (math
+// in #b3bd5a, say); the fallbacks here are for a value the person cleared or
+// made invalid, so an empty colour means "the text colour", by design.
 
 import type { PluginOptions } from 'claude-code'
 
@@ -18,6 +22,8 @@ export type Settings = {
   font: TerminalFont
   /** Whether to draw pictures: `auto` asks the terminal's environment. */
   images: 'auto' | 'always' | 'never'
+  /** Whether a typst block may import packages, which typst downloads. */
+  typstPackages: boolean
 }
 
 /** What `terminalFont` names when the person gives the proportions themselves. */
@@ -41,7 +47,7 @@ function choice<T extends string>(options: PluginOptions, name: string, choices:
 
 function font(options: PluginOptions): TerminalFont {
   const name = String(options.terminalFont ?? '')
-  if (name in FONTS) return FONTS[name as FontName]
+  if (Object.hasOwn(FONTS, name)) return FONTS[name as FontName]
   if (name !== CUSTOM_FONT) return FONTS['JetBrains Mono']
   const preset = FONTS['JetBrains Mono']
   return {
@@ -64,5 +70,6 @@ export function readSettings(options: PluginOptions): Settings {
     },
     font: font(options),
     images: choice(options, 'images', ['auto', 'always', 'never']),
+    typstPackages: options.typstPackages !== false,
   }
 }

@@ -50,7 +50,9 @@ function place(ink: Ink, grid: Grid, options: FitOptions, maxColumns: number, ab
   )
   // On the baseline where the box allows, else as near to it as it does.
   const dy = Math.min(Math.max(baseline - ink.above * scale, 0), height - total * scale)
-  const columns = Math.max(1, Math.ceil((ink.width * scale) / cw))
+  // Capped by the width, the product lands on maxColumns give or take float
+  // noise; ceil of the noise would make the formula a column too wide.
+  const columns = Math.max(1, Math.min(maxColumns, Math.ceil((ink.width * scale) / cw - 1e-9)))
   return { above, below, placement: { columns, rows: 1 + above + below, scale, dy } }
 }
 

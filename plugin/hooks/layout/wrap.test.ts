@@ -20,6 +20,10 @@ describe('wrap', () => {
     expect(shown(wrap([text('so '), box(3), text(', and')], 20))).toEqual(['so [3], and'])
   })
 
+  test('punctuation wraps with its formula, never alone', () => {
+    expect(shown(wrap([text('aaaa bbbb '), box(3), text('.')], 13))).toEqual(['aaaa bbbb ', '[3].'])
+  })
+
   test("each line takes its tallest formula's rows", () => {
     const lines = wrap([text('a '), box(2, 1, 0), text(' b c d e f g '), box(2, 0, 1), box(2, 1, 1)], 8)
     expect(lines.map(l => [l.above, l.below])).toEqual([

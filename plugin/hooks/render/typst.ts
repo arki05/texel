@@ -75,6 +75,11 @@ export function program(job: Job, style: Style): Program {
   }
 }
 
+/** Whether typst markup imports or includes a package (`"@preview/..."`), which typst downloads. */
+export function importsPackage(typst: string) {
+  return /#(?:import|include)\s+"@[\w-]+\//.test(typst)
+}
+
 /** `program` as it would be at any width: what a block drawn at its natural size is known by. */
 export function widthFree({ source, inputs }: Program): Program {
   const { [WIDTH]: _, ...rest } = inputs

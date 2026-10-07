@@ -29,18 +29,24 @@ function png(columns: number, rows: number) {
 function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
   const disk = new Map<string, string>()
   const calls = { compile: 0, measure: 0, read: 0 }
+  const compiledTo: string[] = []
   let fail: ((kind: 'compile' | 'measure') => Promise<{ error: string }> | undefined) | undefined
   const io: Io = {
     exists: async path => disk.has(path),
     readText: async path => disk.get(path)!,
     writeText: async (path, text) => void disk.set(path, text),
     readBase64: async path => (calls.read++, disk.get(path)!),
+    rename: async (from, to) => {
+      disk.set(to, disk.get(from)!)
+      disk.delete(from)
+    },
   }
   const compiler: Compiler = {
     id,
     ppi: 216,
     async compile(_, out) {
       calls.compile++
+      compiledTo.push(out)
       const failure = fail?.('compile')
       if (failure) return failure
       disk.set(out, png(...size))
@@ -56,6 +62,7 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
   return {
     disk,
     calls,
+    compiledTo,
     failWith: (f: typeof fail) => (fail = f),
     renderer: (cache = new RenderCache(), c: Compiler = compiler) => createRenderer({ io, compiler: c, cache, style, cacheDir: '/cache' }),
     compiler,
@@ -127,5 +134,23 @@ describe('renderer', () => {
     expect(await renderer().fresh.ink('x')).toEqual({ width: 8, above: 7.9, below: 0.2 })
     expect(await renderer(new RenderCache()).known.ink('x')).toEqual({ width: 8, above: 7.9, below: 0.2 })
     expect(calls.measure).toBe(1)
+  })
+})
+
+describe('renderer files', () => {
+  test('a picture is made under a name of its own and moved into place whole', async () => {
+    const { renderer, disk, compiledTo } = world()
+    const drawn = await renderer().fresh.picture(display)
+    expect(compiledTo[0]).toMatch(/\.png\.\w+\.part$/)
+    expect(disk.has((drawn as { file: string }).file)).toBe(true)
+    expect([...disk.keys()].some(path => path.endsWith('.part'))).toBe(false)
+  })
+
+  test('a measurement that does not parse is measured again', async () => {
+    const { renderer, disk, calls } = world()
+    await renderer().fresh.ink('x')
+    for (const path of disk.keys()) if (path.endsWith('.ink.json')) disk.set(path, '{"width":8,"abo')
+    expect(await renderer(new RenderCache()).fresh.ink('x')).toEqual({ width: 8, above: 7.9, below: 0.2 })
+    expect(calls.measure).toBe(2)
   })
 })

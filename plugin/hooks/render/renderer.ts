@@ -17,6 +17,8 @@ export type Io = {
   readText: (path: string) => Promise<string>
   writeText: (path: string, text: string) => Promise<void>
   readBase64: (path: string) => Promise<string>
+  /** Moves a finished file into place in one step. */
+  rename: (from: string, to: string) => Promise<void>
 }
 
 /** A formula's ink and a job's picture; `Pending` stands where an answer is not ready. */
@@ -59,9 +61,24 @@ export function createRenderer({ io, compiler, cache, style, cacheDir }: Rendere
   // A run is known by what makes its output: the compiler, its main file, its inputs.
   const keyOf = ({ source, inputs }: Program) => hash(JSON.stringify([compiler.id, source, inputs]))
 
+  // A stored measurement; one that does not parse is measured again.
   async function readInk(file: string) {
     if (!(await io.exists(file))) return undefined
-    return JSON.parse(await io.readText(file)) as Ink
+    try {
+      return JSON.parse(await io.readText(file)) as Ink
+    } catch {
+      return undefined
+    }
+  }
+
+  // Files are made under a name of their own and moved into place when
+  // whole, so a run cut short never leaves half a file under the real name,
+  // and two sessions making the same file never write into one another's.
+  async function writeWhole(file: string, make: (part: string) => Promise<RenderFailure | undefined>) {
+    const part = `${file}.${Math.random().toString(36).slice(2)}.part`
+    const failure = await make(part)
+    if (!failure) await io.rename(part, file)
+    return failure
   }
 
   // A PNG's size in cells. Shrunk to fit, one past the Image's limit would be
@@ -122,7 +139,7 @@ export function createRenderer({ io, compiler, cache, style, cacheDir }: Rendere
         const stored = await readInk(file)
         if (stored) return stored
         const ink = await compiler.measure(measuring)
-        if (!isFailure(ink)) await io.writeText(file, JSON.stringify(ink))
+        if (!isFailure(ink)) await writeWhole(file, async part => void (await io.writeText(part, JSON.stringify(ink))))
         return ink
       })
     },
@@ -133,7 +150,7 @@ export function createRenderer({ io, compiler, cache, style, cacheDir }: Rendere
       const result = await cache.runs.once<Rendered>(key, async () => {
         const file = `${cacheDir}/${key}.png`
         if (!(await io.exists(file))) {
-          const failure = await compiler.compile(drawing, file)
+          const failure = await writeWhole(file, part => compiler.compile(drawing, part))
           if (failure) return failure
         }
         return cells(file)

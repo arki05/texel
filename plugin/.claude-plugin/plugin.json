@@ -19,6 +19,12 @@
       "description": "Colour of typst blocks' text, as hex; empty for the text colour.",
       "default": ""
     },
+    "typstPackages": {
+      "type": "boolean",
+      "title": "Typst blocks may import packages",
+      "description": "A typst block importing a package (@preview/...) makes typst download it from the typst registry. Off: such a block shows its source.",
+      "default": true
+    },
     "inlineSize": {
       "type": "number",
       "title": "Inline math size",

@@ -43,6 +43,12 @@ describe('fitInline', () => {
     expect(f.scale).toBeGreaterThanOrEqual(0.75)
   })
 
+  test('a formula capped by the width is never a column wider than the line', () => {
+    for (let width = 500; width < 800; width += 0.7) {
+      expect(fit({ width, above: 7.9, below: 0.2 }, 15).columns).toBeLessThanOrEqual(15)
+    }
+  })
+
   test('a formula too wide for the line shrinks without growing rows', () => {
     const f = fit({ width: 400, above: 7.9, below: 0.2 }, 20)
     expect([f.above, f.below]).toEqual([0, 0])

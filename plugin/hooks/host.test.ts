@@ -21,7 +21,7 @@ describe('host', () => {
 
   test('typst: found and recent, found and old, or missing', () => {
     expect(typstFrom('typst 0.15.1 (unknown commit)')).toEqual({ version: '0.15.1', isSupported: true })
-    expect(typstFrom('typst 0.11.0')).toEqual({ version: '0.11.0', isSupported: false })
+    expect(typstFrom('typst 0.14.2')).toEqual({ version: '0.14.2', isSupported: false })
     expect(typstFrom(undefined)).toEqual({ missing: true })
   })
 

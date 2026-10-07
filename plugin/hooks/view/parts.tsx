@@ -16,6 +16,8 @@ export type ViewContext = {
   fit: FitOptions
   /** The columns a message's content may take. */
   columns: number
+  /** Whether a typst block may import packages (the `typstPackages` setting). */
+  typstPackages: boolean
   /** Draws the messages again: called once work started in the background is done. */
   redraw: () => void
 }

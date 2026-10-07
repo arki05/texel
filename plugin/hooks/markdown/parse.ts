@@ -38,25 +38,29 @@ const DISPLAY = new RegExp(String.raw`(?<!\\)\$\$${NO_BREAK}+?\$\$|\\\[${NO_BREA
 // A code span, like display math, ends at a paragraph break.
 const CODE_SPAN = new RegExp(String.raw`(\x60+)([^\x60]${NO_BREAK}*?)\1(?!\x60)`, 'g')
 
+// Emphasis and links; a delimiter escaped with a backslash is no delimiter.
 const TOKEN = new RegExp(
   [
     INLINE_PAREN, // 1
     INLINE_DOLLAR, // 2
-    String.raw`\*\*(.+?)\*\*`, // 3 bold
-    String.raw`__(.+?)__`, // 4 bold
-    String.raw`(?<![\w*])\*(?![\s*])(.+?)(?<!\s)\*(?![\w*])`, // 5 italic
-    String.raw`(?<![\w_])_(?![\s_])(.+?)(?<!\s)_(?![\w_])`, // 6 italic
-    String.raw`\[([^\]]+)\]\([^)]+\)`, // 7 link text
+    String.raw`(?<!\\)\*\*(.+?)(?<!\\)\*\*`, // 3 bold
+    String.raw`(?<!\\)__(.+?)(?<!\\)__`, // 4 bold
+    String.raw`(?<![\\\w*])\*(?![\s*])(.+?)(?<![\s\\])\*(?![\w*])`, // 5 italic
+    String.raw`(?<![\\\w_])_(?![\s_])(.+?)(?<![\s\\])_(?![\w_])`, // 6 italic
+    String.raw`(?<!\\)\[([^\]]+)\]\([^)]+\)`, // 7 link text
   ].join('|'),
   'g',
 )
+
+// Markdown's backslash escapes of punctuation (`\*`, `\_`, `\$`), shown as the character.
+const unescape = (text: string) => text.replace(/\\([!-/:-@[-`{-~])/g, '$1')
 
 type Emphasis = Pick<TextStyle, 'bold' | 'italic'>
 
 function tokenizeProse(text: string, style: Emphasis): Atom[] {
   const atoms: Atom[] = []
   const pushText = (t: string) => {
-    if (t) atoms.push({ kind: 'text', text: t.replace(/\\\$/g, '$'), ...style })
+    if (t) atoms.push({ kind: 'text', text: unescape(t), ...style })
   }
   let last = 0
   for (const m of text.matchAll(TOKEN)) {
@@ -90,23 +94,32 @@ function hasInlineMath(paragraph: string) {
 }
 
 // Tables and indented code keep the engine's drawing; math in them stays source.
+const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
+
+// Tables and indented code keep the engine's drawing (their math stays
+// source). In a list, an indented line is a nested item or a continuation,
+// not code.
 function isLayoutable(paragraph: string) {
-  return !paragraph.split('\n').some(line => /^\s*\|/.test(line) || /^( {4}|\t)/.test(line))
+  const lines = paragraph.split('\n')
+  const isList = lines.some(line => LIST_ITEM.test(line))
+  return !lines.some(line => /^\s*\|/.test(line) || (!isList && /^( {4}|\t)/.test(line)))
 }
 
 function paragraphLines(paragraph: string): InlineLine[] {
   const lines: { prefix: string; indent: number; heading: boolean; text: string }[] = []
   for (const raw of paragraph.split('\n')) {
     const heading = raw.match(/^#{1,6}\s+(.*)$/)
-    const item = raw.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/)
+    const item = raw.match(LIST_ITEM)
     const quote = raw.match(/^>\s?(.*)$/)
+    const last = lines[lines.length - 1]
     if (heading) lines.push({ prefix: '', indent: 0, heading: true, text: heading[1]! })
     else if (item) {
       const [, indent = '', bullet = '', rest = ''] = item
       const marker = /\d/.test(bullet) ? `${bullet} ` : '• '
       lines.push({ prefix: marker, indent: indent.length, heading: false, text: rest })
     } else if (quote) lines.push({ prefix: '│ ', indent: 0, heading: false, text: quote[1] ?? '' })
-    else if (lines.length && raw.trim()) lines[lines.length - 1]!.text += ` ${raw.trim()}`
+    // A heading is one line: what follows it starts its own.
+    else if (last && !last.heading && raw.trim()) last.text += ` ${raw.trim()}`
     else if (raw.trim()) lines.push({ prefix: '', indent: 0, heading: false, text: raw.trim() })
   }
   return lines.map(({ text, ...rest }) => ({ ...rest, atoms: tokenize(text, rest.heading ? { bold: true } : {}) }))
@@ -150,7 +163,9 @@ function nonFenced(text: string, out: Segment[]) {
   proseSegments(text.slice(last), out)
 }
 
-export function parse(text: string): Segment[] {
+export function parse(reply: string): Segment[] {
+  // Windows and old Mac line ends, so a blank line is a paragraph break either way.
+  const text = reply.replace(/\r\n?/g, '\n')
   const out: Segment[] = []
   const fence = /^([ \t]*)(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)^\1\2[ \t]*$/gm
   let last = 0

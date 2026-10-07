@@ -187,5 +187,12 @@ test('without typst, the engine draws the row and texel says why, once', { timeo
   const first = await show($, 'so \\(x\\) here')
   await show($, 'so \\(x\\) here')
   expect((await first.find({ type: 'Text' }))?.text).toBe('engine')
-  expect(toasts).toEqual(['texel: typst not found; install typst 0.12 or newer to render math'])
+  expect(toasts).toEqual(['texel: typst not found; install typst 0.15 or newer, then /reload-plugins, to render math'])
+})
+
+test('with typstPackages off, a typst block importing a package shows its source', { timeoutMs: 15000, options: { typstPackages: false } }, async ($, on) => {
+  const { compiles, show } = world(on)
+  const drawing = await show($, '```typst\n#import "@preview/cetz:0.4.2"\nhi\n```')
+  expect(await drawing.find({ text: 'not rendered: it imports a package, and typstPackages is off in /config' })).toBeDefined()
+  expect(compiles).toHaveLength(0)
 })

@@ -13,6 +13,7 @@ describe('readSettings', () => {
       fit: DEFAULT_FIT,
       font: FONTS['JetBrains Mono'],
       images: 'auto',
+      typstPackages: true,
     })
   })
 
@@ -34,6 +35,12 @@ describe('readSettings', () => {
       baseline: 0.8,
     })
     expect(readSettings({ terminalFont: 'Comic Mono' }).font).toEqual(FONTS['JetBrains Mono'])
+    expect(readSettings({ terminalFont: 'constructor' }).font).toEqual(FONTS['JetBrains Mono'])
+  })
+
+  test('typst packages are allowed unless turned off', () => {
+    expect(readSettings({ typstPackages: false }).typstPackages).toBe(false)
+    expect(readSettings({ typstPackages: 'nonsense' }).typstPackages).toBe(true)
   })
 
   test('pictures: auto, always or never; anything else is auto', () => {

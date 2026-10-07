@@ -24,7 +24,8 @@ describe('cliCompiler', () => {
     expect(stdin).toBe(ink.source)
     expect(argv.slice(0, 6)).toEqual(['typst', 'compile', '--root', '/lib', '--package-path', '/lib/packages'])
     expect(argv).toEqual(expect.arrayContaining(['--input', 'tex=x', '--input', 'macros=']))
-    expect(argv.slice(-2)).toEqual(['-', '/out.png'])
+    // PNG by name, whatever the file is called: the renderer writes under a temporary one.
+    expect(argv.slice(-6)).toEqual(['--format', 'png', '--ppi', '216', '-', '/out.png'])
   })
 
   test('measure reads the ink back from its label', async () => {

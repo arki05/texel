@@ -35,8 +35,8 @@ export function showsImages({ env }: Machine) {
   return env.TERM === 'xterm-kitty' || Boolean(env.KITTY_WINDOW_ID) || env.TERM_PROGRAM === 'ghostty'
 }
 
-/** The oldest typst the bundled mitex works with; texel is tested on 0.15. */
-export const MIN_TYPST = [0, 12] as const
+/** The oldest typst texel works with: 0.15 brought `typst eval`, which measuring uses. */
+export const MIN_TYPST = [0, 15] as const
 
 export type TypstInstall = { version: string; isSupported: boolean } | { missing: true }
 

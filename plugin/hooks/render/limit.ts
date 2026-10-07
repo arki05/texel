@@ -6,13 +6,16 @@ export class Limiter {
   constructor(private readonly max: number) {}
 
   async run<T>(task: () => Promise<T>): Promise<T> {
-    if (this.running >= this.max) await new Promise<void>(resolve => this.waiting.push(resolve))
-    this.running++
+    if (this.running < this.max) this.running++
+    // A waiter is handed its slot already counted: none frees up in between
+    // for a newcomer to take as well.
+    else await new Promise<void>(resolve => this.waiting.push(resolve))
     try {
       return await task()
     } finally {
-      this.running--
-      this.waiting.shift()?.()
+      const next = this.waiting.shift()
+      if (next) next()
+      else this.running--
     }
   }
 }

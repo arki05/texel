@@ -88,3 +88,29 @@ describe('parse', () => {
     expect(needsRender(parse('Look:\n\n```bash\necho $a$ $b$'))).toBe(false)
   })
 })
+
+describe('parse: markdown around math', () => {
+  const kinds = (text: string) => parse(text).map(s => s.kind)
+  const lineTexts = (text: string) => {
+    const [seg] = parse(text)
+    if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
+    return seg.lines.map(line => line.atoms.map(a => (a.kind === 'text' ? a.text : `[${a.tex}]`)).join(''))
+  }
+
+  test('a nested list indented by four spaces is a list, not code', () => {
+    expect(kinds('- a \\(x\\)\n    - b \\(y\\)')).toEqual(['paragraph'])
+    expect(kinds('    code \\(x\\) here')).toEqual(['markdown'])
+  })
+
+  test('a heading stays one line; the body after it is its own', () => {
+    expect(lineTexts('## Heading\nBody with \\(x\\)')).toEqual(['Heading', 'Body with [x]'])
+  })
+
+  test('Windows line ends still break paragraphs', () => {
+    expect(kinds('a \\(x\\) b\r\n\r\nc \\(y\\) d')).toEqual(['paragraph', 'paragraph'])
+  })
+
+  test('escaped punctuation is shown as itself, and is no delimiter', () => {
+    expect(lineTexts('\\*not italic\\* and \\_nor this\\_ near \\(x\\)')).toEqual(['*not italic* and _nor this_ near [x]'])
+  })
+})

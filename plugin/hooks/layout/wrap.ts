@@ -77,19 +77,39 @@ function merge<Box>(pieces: Piece<Box>[]): Piece<Box>[] {
   return out
 }
 
-/** Greedy wrapping at `width` cells; a formula is never split, only moved down. */
+// Tokens with no space between them (a formula and the comma after it, a
+// word changing style mid-way) wrap as one unit. A unit wider than a line
+// wraps token by token, a word wider than a line cut to fit.
+function units<Box>(all: Token<Box>[], width: number): Token<Box>[][] {
+  const grouped: Token<Box>[][] = []
+  for (const token of all) {
+    const last = grouped[grouped.length - 1]
+    if (last && last[last.length - 1]!.space === 0) last.push(token)
+    else grouped.push([token])
+  }
+  return grouped.flatMap(unit => (span(unit) <= width ? [unit] : unit.flatMap(token => cut(token, width).map(part => [part]))))
+}
+
+// A unit's width, its last token's trailing space aside.
+function span<Box>(unit: Token<Box>[]) {
+  return unit.reduce((sum, token, i) => sum + token.width + (i < unit.length - 1 ? token.space : 0), 0)
+}
+
+/** Greedy wrapping at `width` cells; a formula is never split, only moved down with what touches it. */
 export function wrap<Box>(pieces: Piece<Box>[], width: number): Line<Box>[] {
   const lines: Piece<Box>[][] = [[]]
   let used = 0
-  for (const token of tokens(pieces).flatMap(t => cut(t, width))) {
-    if (used > 0 && used + token.width > width) {
+  for (const unit of units(tokens(pieces), width)) {
+    if (used > 0 && used + span(unit) > width) {
       lines.push([])
       used = 0
     }
-    // A space that would open a line is dropped.
-    if (used === 0 && token.piece.kind === 'text' && !token.piece.text.trim()) continue
-    lines[lines.length - 1]!.push(token.piece)
-    used += token.width + token.space
+    for (const token of unit) {
+      // A space that would open a line is dropped.
+      if (used === 0 && token.piece.kind === 'text' && !token.piece.text.trim()) continue
+      lines[lines.length - 1]!.push(token.piece)
+      used += token.width + token.space
+    }
   }
   return lines
     .filter(line => line.length > 0)
