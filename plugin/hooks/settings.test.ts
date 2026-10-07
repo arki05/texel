@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { DEFAULT_FIT } from './layout/fit'
+import { FONTS } from './layout/geometry'
 import { readSettings } from './settings'
-import { FONTS } from './terminal'
 
 describe('readSettings', () => {
   test("nothing set: the defaults, colours following the text, Ghostty's font", () => {

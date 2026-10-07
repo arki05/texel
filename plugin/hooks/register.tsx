@@ -1,16 +1,23 @@
 // texel's hooks: redraw assistant replies and the person's own prompts with
 // their math and typst rendered. The only module that touches `$`: it gathers
-// facts about the machine and Claude Code, leaves the decisions to terminal.ts
-// and settings.ts, builds a renderer, and hands the row to the view.
+// facts about the machine and Claude Code (host.ts and settings.ts decide what
+// they mean), prepares what the view draws with, and hands it each message.
 
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
+import { cacheDir, MIN_TYPST, pruneCommand, showsImages, themeFrom, typstFrom, type Machine, type TypstInstall } from './host'
+import { gridFor } from './layout/geometry'
 import { needsRender, parse } from './markdown/parse'
-import { createRenderer, pruneCache, RenderCache, type Io } from './render/renderer'
+import { hash } from './render/hash'
+import { Limiter } from './render/limit'
+import { createRenderer, RenderCache, type Io } from './render/renderer'
+import { cliCompiler, type Run } from './render/typst-cli'
 import { readSettings, type Settings } from './settings'
-import { cacheDir, gridFor, MIN_TYPST, showsImages, themeFrom, typstFrom, type Machine, type Typst } from './terminal'
 import { drawMessage } from './view/message'
+import type { ViewContext } from './view/parts'
 
+// The folder of texel.typ and its packages, within the plugin.
+const LIB = 'hooks/render'
 // Personal LaTeX macros (`\newcommand`s), led into every formula; the model never sees them.
 const MACROS = '.config/texel/macros.tex'
 // Claude Code's own prompt-row background, and the text colour, per theme.
@@ -18,21 +25,32 @@ const PROMPT_BACKGROUND = { dark: 'rgb(55, 55, 55)', light: 'rgb(240, 240, 240)'
 const TEXT = { dark: 'e6e6e6', light: '1f1f1f' }
 // The engine's gutter beside a reply (`⏺ `), and a column to spare.
 const GUTTER = 4
-// One fact a line, in Machine's order.
-const FACTS = 'printf "%s\\n" "$HOME" "$(uname -s)" "$XDG_CACHE_HOME" "$TERM" "$TERM_PROGRAM" "$KITTY_WINDOW_ID" "$TMUX"'
 
-/** What texel learns about the machine once per load. */
-type Host = { machine: Machine; typst: Typst; systemIsDark: boolean }
+type Theme = 'dark' | 'light'
+
+/** What texel learns once per load: the machine, its typst, and texel.typ's fingerprint. */
+type Host = { machine: Machine; typst: TypstInstall; systemIsDark: boolean; library: string }
 
 let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
-let theme: Promise<'dark' | 'light'> | undefined
+let theme: Promise<Theme> | undefined
 let toldAboutTypst = false
 const cache = new RenderCache()
+// Typst processes at once, across every draw: a reply full of formulas queues rather than floods.
+const typstSlots = new Limiter(4)
 
 async function learnHost($: EngineInterface): Promise<Host> {
-  const [facts, version, appearance] = await Promise.all([
-    $.process.run(['/bin/sh', '-c', FACTS]).then(r => r.stdout.split('\n')),
+  const [home, XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX, os, version, appearance, library] = await Promise.all([
+    $.env.get('HOME'),
+    $.env.get('XDG_CACHE_HOME'),
+    $.env.get('TERM'),
+    $.env.get('TERM_PROGRAM'),
+    $.env.get('KITTY_WINDOW_ID'),
+    $.env.get('TMUX'),
+    $.process.run(['uname', '-s']).then(
+      r => r.stdout.trim(),
+      () => '',
+    ),
     $.process.run(['typst', '--version']).then(
       r => r.stdout,
       () => undefined,
@@ -41,17 +59,17 @@ async function learnHost($: EngineInterface): Promise<Host> {
       r => r.stdout.trim(),
       () => '',
     ),
+    $.fs.read(`${$.plugin.root}/${LIB}/texel.typ`).then(hash),
   ])
-  const [home = '', os = '', ...env] = facts
-  const [XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX] = env.map(value => value || undefined)
-  const machine: Machine = { home, os, env: { XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX } }
+  const machine: Machine = { home: home ?? '', os, env: { XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX } }
+  await $.process.run(['mkdir', '-p', cacheDir(machine)])
+  void $.process.run(pruneCommand(cacheDir(machine)))
   // Off macOS there is no system appearance to ask; dark is the terminal norm.
-  return { machine, typst: typstFrom(version), systemIsDark: os !== 'Darwin' || appearance === 'Dark' }
+  return { machine, typst: typstFrom(version), systemIsDark: os !== 'Darwin' || appearance === 'Dark', library }
 }
 
-function io($: EngineInterface): Io {
+function files($: EngineInterface): Io {
   return {
-    run: (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 }),
     exists: path => $.fs.exists(path),
     readText: path => $.fs.read(path),
     writeText: (path, text) => $.fs.write(path, text),
@@ -60,28 +78,25 @@ function io($: EngineInterface): Io {
 }
 
 // Said once per load, when there is no typst texel can use.
-function tellAboutTypst($: EngineInterface, typst: Typst) {
+function tellAboutTypst($: EngineInterface, typst: TypstInstall) {
   if (toldAboutTypst) return
   toldAboutTypst = true
   const needed = `typst ${MIN_TYPST.join('.')} or newer`
   $.ui.toast('missing' in typst ? `texel: typst not found; install ${needed} to render math` : `texel: typst ${typst.version} is too old; install ${needed} to render math`)
 }
 
-async function drawRow(
+/**
+ * What the view draws a message with, or undefined where texel leaves the
+ * message to the engine: no pictures here, or no typst to make them.
+ */
+async function prepare(
   $: EngineInterface,
   e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
   settings: Settings,
-  isPrompt: boolean,
-) {
+): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
   if (settings.images === 'never') return undefined
-  const segments = parse(e.props.text)
-  if (!needsRender(segments)) return undefined
-
-  if (!host) {
-    host = learnHost($)
-    void host.then(({ machine }) => pruneCache(io($), cacheDir(machine)))
-  }
-  const { machine, typst, systemIsDark } = await host
+  host ??= learnHost($)
+  const { machine, typst, systemIsDark, library } = await host
   if (settings.images === 'auto' && !showsImages(machine)) return undefined
   if ('missing' in typst || !typst.isSupported) {
     tellAboutTypst($, typst)
@@ -89,23 +104,24 @@ async function drawRow(
   }
 
   theme ??= $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, systemIsDark))
-  const colors = TEXT[await theme]
+  const current = await theme
   const grid = gridFor(settings.font)
+  const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
   const renderer = createRenderer({
-    io: io($),
+    io: files($),
+    compiler: cliCompiler({ run, limiter: typstSlots, lib: `${$.plugin.root}/${LIB}`, version: typst.version, library }),
     cache,
-    lib: `${$.plugin.root}/hooks/render`,
     cacheDir: cacheDir(machine),
     style: {
       grid,
-      mathColor: settings.mathColor ?? colors,
-      typstColor: settings.typstColor ?? colors,
+      mathColor: settings.mathColor ?? TEXT[current],
+      typstColor: settings.typstColor ?? TEXT[current],
       inlineScale: settings.inlineScale,
       // Read on every draw, so an edit to the file shows on the next redraw.
       macros: await $.fs.read(`${machine.home}/${MACROS}`).catch(() => ''),
     },
   })
-  const ctx = {
+  const ctx: ViewContext = {
     ui: $.ui.resolve(e),
     renderer,
     grid,
@@ -113,7 +129,20 @@ async function drawRow(
     columns: (e.viewport?.columns ?? 100) - GUTTER,
     redraw: () => $.ui.invalidate('ui.render'),
   }
-  return drawMessage(ctx, segments, isPrompt ? PROMPT_BACKGROUND[await theme] : undefined)
+  return { ctx, theme: current }
+}
+
+async function draw(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
+  settings: Settings,
+  isPrompt: boolean,
+) {
+  const segments = parse(e.props.text)
+  if (!needsRender(segments)) return undefined
+  const prepared = await prepare($, e, settings)
+  if (!prepared) return undefined
+  return drawMessage(prepared.ctx, segments, isPrompt ? PROMPT_BACKGROUND[prepared.theme] : undefined)
 }
 
 export const register: Register = (on, options) => {
@@ -121,13 +150,13 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
-    return (await drawRow($, e, settings, false)) ?? next(e)
+    return (await draw($, e, settings, false)) ?? next(e)
   })
 
   // The person's own prompts, typed in the composer.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.props.origin.kind !== 'composer') return next(e)
-    return (await drawRow($, e, settings, true)) ?? next(e)
+    return (await draw($, e, settings, true)) ?? next(e)
   })
 
   // A new theme: read it again on the next draw.

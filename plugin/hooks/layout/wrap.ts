@@ -2,7 +2,7 @@
 // line knows which formulas it holds, and so how many rows it must grow above
 // and below its text to hold them. Pure: pieces and a width in, lines out.
 
-export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean; dim?: boolean }
+import type { TextStyle } from '../markdown/parse'
 
 export type Piece<Box> =
   | ({ kind: 'text'; text: string } & TextStyle)

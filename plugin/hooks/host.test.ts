@@ -1,17 +1,11 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { cacheDir, FONTS, gridFor, showsImages, themeFrom, typstFrom, type Machine } from './terminal'
+import { cacheDir, showsImages, themeFrom, typstFrom, type Machine } from './host'
 
 const mac: Machine = { home: '/Users/a', os: 'Darwin', env: {} }
 const linux: Machine = { home: '/home/a', os: 'Linux', env: {} }
 
-describe('terminal', () => {
-  test('a font becomes a grid of its proportions', () => {
-    const grid = gridFor(FONTS['JetBrains Mono'])
-    expect(grid.cellHeight / grid.cellWidth).toBe(2.2)
-    expect(grid.xHeight / grid.cellHeight).toBe(0.4167)
-  })
-
+describe('host', () => {
   test('the cache lives where the platform keeps caches', () => {
     expect(cacheDir(mac)).toBe('/Users/a/Library/Caches/texel')
     expect(cacheDir(linux)).toBe('/home/a/.cache/texel')

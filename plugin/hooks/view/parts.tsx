@@ -1,11 +1,11 @@
-// What every part of the view shares: the drawing's context, and the elements
-// more than one part draws.
+// What every part of the view shares: the drawing's context, the one way a
+// part waits for typst, and the elements more than one part draws.
 
 import type { Elements, RenderElement } from 'claude-code'
 
 import type { FitOptions } from '../layout/fit'
-import type { RenderFailure, Renderer } from '../render/renderer'
-import type { Grid } from '../render/typst'
+import type { Grid } from '../layout/geometry'
+import type { Renderer } from '../render/renderer'
 
 export type Table = Elements['terminal']
 
@@ -14,10 +14,23 @@ export type ViewContext = {
   renderer: Renderer
   grid: Grid
   fit: FitOptions
-  /** The columns a row's content may take. */
+  /** The columns a message's content may take. */
   columns: number
-  /** Draws the rows again: called once a render started in the background is done. */
+  /** Draws the messages again: called once work started in the background is done. */
   redraw: () => void
+}
+
+/**
+ * What `known` answers, if it can; otherwise `work` starts in the background
+ * and redraws when done, and the answer is undefined meanwhile. A draw never
+ * waits on typst: a hook that did could outlast its time and be drawn as
+ * plain source, with nothing to draw it again.
+ */
+export async function readyOr<T>(ctx: ViewContext, known: () => Promise<T | undefined>, work: () => Promise<unknown>) {
+  const ready = await known()
+  if (ready !== undefined) return ready
+  void work().then(ctx.redraw, ctx.redraw)
+  return undefined
 }
 
 /**
@@ -31,12 +44,6 @@ export function image(ui: Table, file: string, columns: number, rows: number, al
       <Image source={{ file, format: 'png' }} columns={columns} rows={rows} alt={alt} />
     </Box>
   )
-}
-
-/** A failure's first line, without typst's `error:`, cut to `max` characters. */
-export function reason(failure: RenderFailure, max = 200) {
-  const line = failure.error.split('\n')[0]!.replace(/^error:\s*/, '')
-  return line.length > max ? `${line.slice(0, max - 1)}…` : line
 }
 
 /** Source drawn as the engine draws markdown, with a dim line saying why it is not a picture. */

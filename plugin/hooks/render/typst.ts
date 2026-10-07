@@ -1,19 +1,10 @@
-// texel's contract with texel.typ: which entry point draws each job, and the
-// inputs it reads. Everything that varies travels as an `--input`, so no LaTeX,
-// colour or size is ever spliced into typst source. Pure: jobs in, programs
-// and command lines out.
+// texel's contract with texel.typ: which entry point does each job, and the
+// inputs it reads. Everything that varies travels as an input, so no LaTeX,
+// colour or size is ever spliced into typst source. Pure: jobs in, programs out.
 
-/** The terminal's grid and font, in points: what every figure is fitted to. */
-export type Grid = {
-  cellWidth: number
-  cellHeight: number
-  /** The terminal font's x-height; math is sized against it. */
-  xHeight: number
-  /** Where the baseline sits in a row, as a fraction of it from the top. */
-  baseline: number
-}
+import type { Grid, Placement } from '../layout/geometry'
 
-/** How things are set on that grid: the person's settings and macros. */
+/** How things are set on the grid: the person's settings and macros. */
 export type Style = {
   grid: Grid
   /** Ink colours, six hex digits. */
@@ -25,36 +16,28 @@ export type Style = {
   macros: string
 }
 
-/** A formula's ink at its natural size, in points: what `inline-ink` reports. */
-export type Ink = { width: number; above: number; below: number }
-
-/** Where an inline formula is drawn: its box in cells, its scale, its offset down (pt). */
-export type Placement = { columns: number; rows: number; scale: number; dy: number }
-
 export type Job =
-  /** An inline formula's ink, measured; read back with `typst eval`. */
+  /** An inline formula's ink, measured. */
   | { kind: 'ink'; tex: string }
   /** An inline formula, drawn as placed. */
   | { kind: 'inline'; tex: string; placement: Placement }
   /** LaTeX math on its own. */
   | { kind: 'display'; tex: string }
-  /** Typst markup: a figure, or prose that wraps at the transcript's width. */
-  | { kind: 'block'; typst: string }
+  /** Typst markup, laid out at most `maxColumns` wide: a figure, or prose that wraps. */
+  | { kind: 'typst'; typst: string; maxColumns: number }
+
+/** A job that draws a picture: every kind but measuring. */
+export type DrawJob = Exclude<Job, { kind: 'ink' }>
 
 /** One run of typst: a main file and the inputs it reads. */
 export type Program = { source: string; inputs: Record<string, string> }
 
-export const PPI = 216
-
-/** The label `inline-ink` puts its measurement under. */
-const INK_LABEL = 'ink'
-
-/** The one input that ties a program to the transcript's width. */
+/** The input that ties a program to the transcript's width: only a typst block has it. */
 const WIDTH = 'max-columns'
 
-const main = (call: string, setup = 'setup') => `#import "/texel.typ": *\n#show: ${setup}\n${call}\n`
+const main = (call: string) => `#import "/texel.typ": *\n${call}\n`
 
-function gridInputs({ cellWidth, cellHeight, xHeight, baseline }: Grid, scale: number) {
+function grid({ cellWidth, cellHeight, xHeight, baseline }: Grid, scale: number) {
   return {
     'cell-width': String(cellWidth),
     'cell-height': String(cellHeight),
@@ -65,53 +48,35 @@ function gridInputs({ cellWidth, cellHeight, xHeight, baseline }: Grid, scale: n
 }
 
 /**
- * The program that does `job`. Only a typst block is laid out against
- * `maxColumns`: math is drawn the same at any width, so a resize reuses it.
- * Ink has no colour, so a new colour never measures again.
+ * The program that does `job`, through the texel.typ entry point of the same
+ * name. Math draws the same at any width, so a resize reuses it; ink has no
+ * colour, so a new colour never measures again.
  */
-export function program(job: Job, style: Style, maxColumns: number): Program {
+export function program(job: Job, style: Style): Program {
   const latex = (tex: string) => ({ tex, macros: style.macros })
   switch (job.kind) {
     case 'ink':
-      return { source: main('#inline-ink()'), inputs: { ...gridInputs(style.grid, style.inlineScale), ...latex(job.tex) } }
+      return { source: main('#inline-ink()'), inputs: { ...grid(style.grid, style.inlineScale), ...latex(job.tex) } }
     case 'inline': {
       const { columns, rows, scale, dy } = job.placement
       const placement = { 'fit-columns': String(columns), 'fit-rows': String(rows), 'fit-scale': String(scale), 'fit-dy': String(dy) }
-      const inputs = { ...gridInputs(style.grid, style.inlineScale), foreground: style.mathColor, ...latex(job.tex), ...placement }
-      return { source: main('#inline-latex()'), inputs }
+      return {
+        source: main('#inline-math()'),
+        inputs: { ...grid(style.grid, style.inlineScale), foreground: style.mathColor, ...latex(job.tex), ...placement },
+      }
     }
     case 'display':
+      return { source: main('#display-math()'), inputs: { ...grid(style.grid, 1), foreground: style.mathColor, ...latex(job.tex) } }
+    case 'typst':
       return {
-        source: main('#display-math(latex(display: true))'),
-        inputs: { ...gridInputs(style.grid, 1), foreground: style.mathColor, ...latex(job.tex) },
-      }
-    case 'block':
-      return {
-        source: main(`#typst-block[\n${job.typst}\n]`, 'setup.with(ink: false)'),
-        inputs: { ...gridInputs(style.grid, 1), foreground: style.typstColor, [WIDTH]: String(maxColumns) },
+        source: main(`#typst-block[\n${job.typst}\n]`),
+        inputs: { ...grid(style.grid, 1), foreground: style.typstColor, [WIDTH]: String(job.maxColumns) },
       }
   }
 }
 
-/** `program` as it would be at any width: what a block drawn at natural size is known by. */
+/** `program` as it would be at any width: what a block drawn at its natural size is known by. */
 export function widthFree({ source, inputs }: Program): Program {
   const { [WIDTH]: _, ...rest } = inputs
   return { source, inputs: rest }
-}
-
-// The library is the root, and its bundled packages (mitex) come first, so
-// LaTeX renders offline and on the mitex texel was tested with.
-function flags(lib: string, { inputs }: Program) {
-  const entries = Object.entries(inputs).flatMap(([name, value]) => ['--input', `${name}=${value}`])
-  return ['--root', lib, '--package-path', `${lib}/packages`, ...entries]
-}
-
-/** `typst compile` of `program` (its source on stdin) into the PNG `out`. */
-export function compileCommand(lib: string, program: Program, out: string) {
-  return ['typst', 'compile', ...flags(lib, program), '--ppi', String(PPI), '-', out]
-}
-
-/** `typst eval` of `program` (its source on stdin), printing its ink as JSON. */
-export function measureCommand(lib: string, program: Program) {
-  return ['typst', 'eval', ...flags(lib, program), '--in', '-', `query(<${INK_LABEL}>).first().value`]
 }

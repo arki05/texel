@@ -1,9 +1,10 @@
 // Splits an assistant reply's markdown into what the engine can draw as-is and
 // what texel should turn into pictures. Pure: no `$`, no I/O.
 
-export type Atom =
-  | { kind: 'text'; text: string; bold?: boolean; italic?: boolean; code?: boolean }
-  | { kind: 'math'; tex: string }
+/** How a run of text is drawn; `dim` is texel's own, for notes. */
+export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean; dim?: boolean }
+
+export type Atom = ({ kind: 'text'; text: string } & TextStyle) | { kind: 'math'; tex: string }
 
 export type InlineLine = {
   /** What leads the line: a list marker, a quote bar, or nothing. */
@@ -50,9 +51,9 @@ const TOKEN = new RegExp(
   'g',
 )
 
-type Style = { bold?: boolean; italic?: boolean }
+type Emphasis = Pick<TextStyle, 'bold' | 'italic'>
 
-function tokenizeProse(text: string, style: Style): Atom[] {
+function tokenizeProse(text: string, style: Emphasis): Atom[] {
   const atoms: Atom[] = []
   const pushText = (t: string) => {
     if (t) atoms.push({ kind: 'text', text: t.replace(/\\\$/g, '$'), ...style })
@@ -71,7 +72,7 @@ function tokenizeProse(text: string, style: Style): Atom[] {
 }
 
 // Code spans first, so nothing inside one is ever math or emphasis.
-export function tokenize(text: string, style: Style = {}): Atom[] {
+export function tokenize(text: string, style: Emphasis = {}): Atom[] {
   const atoms: Atom[] = []
   let last = 0
   for (const m of text.matchAll(CODE_SPAN)) {

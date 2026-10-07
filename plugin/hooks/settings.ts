@@ -5,7 +5,7 @@
 import type { PluginOptions } from 'claude-code'
 
 import { DEFAULT_FIT, type FitOptions } from './layout/fit'
-import { FONTS, type FontName, type TerminalFont } from './terminal'
+import { FONTS, type FontName, type TerminalFont } from './layout/geometry'
 
 export type Settings = {
   /** Ink colours, six hex digits; unset follows the theme's text colour. */

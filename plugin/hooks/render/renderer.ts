@@ -1,127 +1,74 @@
-// Runs texel's typst programs and remembers what they produced: each PNG or
-// measurement on disk by content hash, and every run in memory for as long as
-// the module is loaded. Every consumer draws through a Renderer.
+// Turns jobs into pictures and measurements. It decides what typst must run
+// and has a Compiler run it, keeps every result on disk by content hash and in
+// a Memo, and answers from those whenever it can. Every consumer draws through
+// a Renderer.
 
-import { Limiter } from './limit'
+import type { Ink } from '../layout/geometry'
+import type { Compiler } from './compiler'
+import { hash } from './hash'
+import { Memo } from './memo'
 import { pngSize } from './png'
-import { compileCommand, measureCommand, PPI, program, widthFree, type Ink, type Job, type Program, type Style } from './typst'
+import { isFailure, type Rendered, type RenderFailure } from './result'
+import { program, widthFree, type DrawJob, type Program, type Style } from './typst'
 
-/** What a renderer needs from the host; the hooks module builds it from `$`. */
+/** The files a renderer reads and writes; the hooks module builds it from `$`. */
 export type Io = {
-  run: (argv: string[], stdin?: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   exists: (path: string) => Promise<boolean>
   readText: (path: string) => Promise<string>
   writeText: (path: string, text: string) => Promise<void>
   readBase64: (path: string) => Promise<string>
 }
 
-export type Rendered = { file: string; columns: number; rows: number }
-
-/** Why a run failed; `transient` when trying again could succeed. */
-export type RenderFailure = { error: string; transient?: true }
-
-export function isFailure(result: object): result is RenderFailure {
-  return 'error' in result
+/** A formula's ink and a job's picture; `Pending` stands where an answer is not ready. */
+export type Answers<Pending> = {
+  ink(tex: string): Promise<Ink | RenderFailure | Pending>
+  picture(job: DrawJob): Promise<Rendered | RenderFailure | Pending>
 }
 
-/** A job that draws a PNG: every kind but measuring. */
-export type DrawJob = Exclude<Job, { kind: 'ink' }>
-
 export type Renderer = {
-  /** An inline formula's ink at its natural size. */
-  measure(tex: string): Promise<Ink | RenderFailure>
-  /** `job` as a PNG of whole cells; `maxColumns` is the width a block lays out against. */
-  render(job: DrawJob, maxColumns: number): Promise<Rendered | RenderFailure>
-  /** What `render` would answer without running typst; undefined when only a run can tell. */
-  peek(job: DrawJob, maxColumns: number): Promise<Rendered | RenderFailure | undefined>
+  /** Answers from what is already known, in memory or on disk; undefined where only typst can tell. */
+  known: Answers<undefined>
+  /** Answers by running typst where it must. */
+  fresh: Answers<never>
 }
 
 /** What renderers share between draws, for as long as the module is loaded. */
 export class RenderCache {
-  /** Runs by key: in flight, or settled to a success or to typst's own error. */
-  readonly runs = new Map<string, Promise<unknown>>()
-  /** What each run settled to, read without waiting. */
-  readonly settled = new Map<string, unknown>()
-  /** Blocks drawn at their natural size, by their width-free program: reused at any width they fit. */
+  /** Every run, by its key. */
+  readonly runs = new Memo()
+  /**
+   * Typst blocks drawn at their natural size, by their width-free program's
+   * key: reused at any width they fit, so a resize needs no new picture.
+   */
   readonly natural = new Map<string, Rendered>()
-  /** Typst processes at once: a reply full of formulas queues rather than floods. */
-  readonly typst = new Limiter(4)
-  library?: Promise<string>
-  directory?: Promise<unknown>
-}
-
-/** How many files the cache keeps; past it, the oldest go. */
-export const CACHE_FILES = 4000
-
-/** Removes all but the newest `keep` files of the cache folder; a removed one is drawn again when needed. */
-export async function pruneCache(io: Io, cacheDir: string, keep = CACHE_FILES) {
-  const script = 'cd "$1" 2>/dev/null || exit 0; ls -t | tail -n +"$2" | while IFS= read -r f; do rm -f -- "$f"; done'
-  await io.run(['/bin/sh', '-c', script, 'prune', cacheDir, String(keep + 1)])
 }
 
 export type RendererOptions = {
   io: Io
+  compiler: Compiler
   cache: RenderCache
   style: Style
-  /** The folder holding texel.typ: every run's root. */
-  lib: string
-  /** Where PNGs and measurements are kept. */
+  /** Where pictures and measurements are kept. */
   cacheDir: string
 }
 
 // An Image covers at most 255 x 255 cells.
 const MAX_CELLS = 255
 
-async function hash(text: string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return [...new Uint8Array(digest)]
-    .slice(0, 12)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
+export function createRenderer({ io, compiler, cache, style, cacheDir }: RendererOptions): Renderer {
+  // A run is known by what makes its output: the compiler, its main file, its inputs.
+  const keyOf = ({ source, inputs }: Program) => hash(JSON.stringify([compiler.id, source, inputs]))
 
-/** Typst's own error: its first lines. */
-function complaint(stderr: string): RenderFailure {
-  return { error: stderr.trim().split('\n').slice(0, 6).join('\n') }
-}
-
-export function createRenderer({ io, cache, style, lib, cacheDir }: RendererOptions): Renderer {
-  // A run is known by the library, its main file and its inputs, so editing
-  // texel.typ redoes everything.
-  async function keyOf({ source, inputs }: Program) {
-    cache.library ??= io.readText(`${lib}/texel.typ`)
-    return hash(JSON.stringify([await cache.library, source, inputs]))
-  }
-
-  async function pathOf(key: string, extension: string) {
-    cache.directory ??= io.run(['mkdir', '-p', cacheDir])
-    await cache.directory
-    return `${cacheDir}/${key}.${extension}`
-  }
-
-  // Runs `work` once per key and keeps what it settled to. Typst's own errors
-  // are kept too: the same source fails the same way, and a redraw must not
-  // run it again. Anything else (a process cut short) is forgotten, so the
-  // next draw tries again.
-  function once<T extends object>(key: string, work: () => Promise<T | RenderFailure>): Promise<T | RenderFailure> {
-    const running = cache.runs.get(key) as Promise<T | RenderFailure> | undefined
-    if (running) return running
-    const run = work()
-      .catch((error: unknown): RenderFailure => ({ error: String(error), transient: true }))
-      .then(result => {
-        if (isFailure(result) && result.transient) cache.runs.delete(key)
-        else cache.settled.set(key, result)
-        return result
-      })
-    cache.runs.set(key, run)
-    return run
+  async function readInk(file: string) {
+    if (!(await io.exists(file))) return undefined
+    return JSON.parse(await io.readText(file)) as Ink
   }
 
   // A PNG's size in cells. Shrunk to fit, one past the Image's limit would be
   // a sliver, so that is a failure instead.
   async function cells(file: string): Promise<Rendered | RenderFailure> {
     const { width, height } = pngSize(await io.readBase64(file))
-    const points = PPI / 72
+    const points = compiler.ppi / 72
     const columns = Math.max(1, Math.round(width / (style.grid.cellWidth * points)))
     const rows = Math.max(1, Math.round(height / (style.grid.cellHeight * points)))
     if (columns > MAX_CELLS || rows > MAX_CELLS) {
@@ -130,47 +77,71 @@ export function createRenderer({ io, cache, style, lib, cacheDir }: RendererOpti
     return { file, columns, rows }
   }
 
-  return {
-    async measure(tex) {
-      const ink = program({ kind: 'ink', tex }, style, 0)
-      const key = await keyOf(ink)
-      return once<Ink>(key, async () => {
-        const file = await pathOf(key, 'ink.json')
-        if (await io.exists(file)) return JSON.parse(await io.readText(file)) as Ink
-        const run = await cache.typst.run(() => io.run(measureCommand(lib, ink), ink.source))
-        if (run.exitCode !== 0) return complaint(run.stderr)
-        await io.writeText(file, run.stdout)
-        return JSON.parse(run.stdout) as Ink
+  // A typst block narrower than it was allowed was drawn at its natural size
+  // (texel.typ's typst-block draws a fitting figure at least a cell narrower).
+  async function noteNatural(job: DrawJob, drawing: Program, result: Rendered | RenderFailure) {
+    if (job.kind === 'typst' && !isFailure(result) && result.columns < job.maxColumns) {
+      cache.natural.set(await keyOf(widthFree(drawing)), result)
+    }
+  }
+
+  const known: Answers<undefined> = {
+    async ink(tex) {
+      const key = await keyOf(program({ kind: 'ink', tex }, style))
+      const settled = cache.runs.get<Ink>(key)
+      if (settled) return settled
+      const ink = await readInk(`${cacheDir}/${key}.ink.json`)
+      if (ink) cache.runs.settle(key, ink)
+      return ink
+    },
+
+    async picture(job) {
+      const drawing = program(job, style)
+      if (job.kind === 'typst') {
+        const natural = cache.natural.get(await keyOf(widthFree(drawing)))
+        if (natural && natural.columns <= job.maxColumns) return natural
+      }
+      const key = await keyOf(drawing)
+      const settled = cache.runs.get<Rendered>(key)
+      if (settled) return settled
+      const file = `${cacheDir}/${key}.png`
+      if (!(await io.exists(file))) return undefined
+      const result = await cells(file)
+      cache.runs.settle(key, result)
+      await noteNatural(job, drawing, result)
+      return result
+    },
+  }
+
+  const fresh: Answers<never> = {
+    async ink(tex) {
+      const measuring = program({ kind: 'ink', tex }, style)
+      const key = await keyOf(measuring)
+      return cache.runs.once<Ink>(key, async () => {
+        const file = `${cacheDir}/${key}.ink.json`
+        const stored = await readInk(file)
+        if (stored) return stored
+        const ink = await compiler.measure(measuring)
+        if (!isFailure(ink)) await io.writeText(file, JSON.stringify(ink))
+        return ink
       })
     },
 
-    async render(job, maxColumns) {
-      const drawing = program(job, style, maxColumns)
+    async picture(job) {
+      const drawing = program(job, style)
       const key = await keyOf(drawing)
-      const result = await once<Rendered>(key, async () => {
-        const file = await pathOf(key, 'png')
+      const result = await cache.runs.once<Rendered>(key, async () => {
+        const file = `${cacheDir}/${key}.png`
         if (!(await io.exists(file))) {
-          const run = await cache.typst.run(() => io.run(compileCommand(lib, drawing, file), drawing.source))
-          if (run.exitCode !== 0) return complaint(run.stderr)
+          const failure = await compiler.compile(drawing, file)
+          if (failure) return failure
         }
         return cells(file)
       })
-      // A block narrower than it was allowed was drawn at its natural size.
-      if (job.kind === 'block' && !isFailure(result) && result.columns < maxColumns) {
-        cache.natural.set(await keyOf(widthFree(drawing)), result)
-      }
+      await noteNatural(job, drawing, result)
       return result
     },
-
-    async peek(job, maxColumns) {
-      const drawing = program(job, style, maxColumns)
-      const natural = cache.natural.get(await keyOf(widthFree(drawing)))
-      if (natural && natural.columns <= maxColumns) return natural
-      const key = await keyOf(drawing)
-      const settled = cache.settled.get(key) as Rendered | RenderFailure | undefined
-      if (settled) return settled
-      const file = await pathOf(key, 'png')
-      return (await io.exists(file)) ? cells(file) : undefined
-    },
   }
+
+  return { known, fresh }
 }
