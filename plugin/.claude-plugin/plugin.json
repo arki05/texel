@@ -2,7 +2,10 @@
   "name": "texel",
   "version": "0.1.0",
   "description": "Renders math, typst and diagrams inline in the Claude Code transcript",
-  "author": { "name": "Julius Arkenberg", "email": "julius@rkenberg.de" },
+  "author": {
+    "name": "Julius Arkenberg",
+    "email": "julius@rkenberg.de"
+  },
   "userConfig": {
     "mathColor": {
       "type": "string",
@@ -45,6 +48,48 @@
       "title": "Inline math: shift down (rows)",
       "description": "How far below the text's baseline a formula may sit to save a row.",
       "default": 0.5
+    },
+    "terminalFont": {
+      "type": "string",
+      "title": "Terminal font",
+      "description": "Your terminal's font, so formulas sit on its baseline at its size. Custom uses the three proportions below.",
+      "default": "JetBrains Mono",
+      "options": [
+        "JetBrains Mono",
+        "Menlo / DejaVu Sans Mono",
+        "SF Mono",
+        "Monaco",
+        "Custom"
+      ]
+    },
+    "fontAspect": {
+      "type": "number",
+      "title": "Custom font: cell height / width",
+      "description": "Used when the terminal font is Custom.",
+      "default": 2.2
+    },
+    "fontXHeight": {
+      "type": "number",
+      "title": "Custom font: x-height / cell height",
+      "description": "Used when the terminal font is Custom.",
+      "default": 0.4167
+    },
+    "fontBaseline": {
+      "type": "number",
+      "title": "Custom font: baseline / cell height",
+      "description": "From the top of the cell. Used when the terminal font is Custom.",
+      "default": 0.7727
+    },
+    "images": {
+      "type": "string",
+      "title": "Draw pictures",
+      "description": "auto: in terminals that show Claude Code's images (kitty, Ghostty; not through tmux).",
+      "default": "auto",
+      "options": [
+        "auto",
+        "always",
+        "never"
+      ]
     }
   }
 }

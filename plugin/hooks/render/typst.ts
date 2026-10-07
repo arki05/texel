@@ -99,8 +99,11 @@ export function widthFree({ source, inputs }: Program): Program {
   return { source, inputs: rest }
 }
 
+// The library is the root, and its bundled packages (mitex) come first, so
+// LaTeX renders offline and on the mitex texel was tested with.
 function flags(lib: string, { inputs }: Program) {
-  return ['--root', lib, ...Object.entries(inputs).flatMap(([name, value]) => ['--input', `${name}=${value}`])]
+  const entries = Object.entries(inputs).flatMap(([name, value]) => ['--input', `${name}=${value}`])
+  return ['--root', lib, '--package-path', `${lib}/packages`, ...entries]
 }
 
 /** `typst compile` of `program` (its source on stdin) into the PNG `out`. */

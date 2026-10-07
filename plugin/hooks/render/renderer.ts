@@ -2,6 +2,7 @@
 // measurement on disk by content hash, and every run in memory for as long as
 // the module is loaded. Every consumer draws through a Renderer.
 
+import { Limiter } from './limit'
 import { pngSize } from './png'
 import { compileCommand, measureCommand, PPI, program, widthFree, type Ink, type Job, type Program, type Style } from './typst'
 
@@ -43,8 +44,19 @@ export class RenderCache {
   readonly settled = new Map<string, unknown>()
   /** Blocks drawn at their natural size, by their width-free program: reused at any width they fit. */
   readonly natural = new Map<string, Rendered>()
+  /** Typst processes at once: a reply full of formulas queues rather than floods. */
+  readonly typst = new Limiter(4)
   library?: Promise<string>
   directory?: Promise<unknown>
+}
+
+/** How many files the cache keeps; past it, the oldest go. */
+export const CACHE_FILES = 4000
+
+/** Removes all but the newest `keep` files of the cache folder; a removed one is drawn again when needed. */
+export async function pruneCache(io: Io, cacheDir: string, keep = CACHE_FILES) {
+  const script = 'cd "$1" 2>/dev/null || exit 0; ls -t | tail -n +"$2" | while IFS= read -r f; do rm -f -- "$f"; done'
+  await io.run(['/bin/sh', '-c', script, 'prune', cacheDir, String(keep + 1)])
 }
 
 export type RendererOptions = {
@@ -125,7 +137,7 @@ export function createRenderer({ io, cache, style, lib, cacheDir }: RendererOpti
       return once<Ink>(key, async () => {
         const file = await pathOf(key, 'ink.json')
         if (await io.exists(file)) return JSON.parse(await io.readText(file)) as Ink
-        const run = await io.run(measureCommand(lib, ink), ink.source)
+        const run = await cache.typst.run(() => io.run(measureCommand(lib, ink), ink.source))
         if (run.exitCode !== 0) return complaint(run.stderr)
         await io.writeText(file, run.stdout)
         return JSON.parse(run.stdout) as Ink
@@ -138,7 +150,7 @@ export function createRenderer({ io, cache, style, lib, cacheDir }: RendererOpti
       const result = await once<Rendered>(key, async () => {
         const file = await pathOf(key, 'png')
         if (!(await io.exists(file))) {
-          const run = await io.run(compileCommand(lib, drawing, file), drawing.source)
+          const run = await cache.typst.run(() => io.run(compileCommand(lib, drawing, file), drawing.source))
           if (run.exitCode !== 0) return complaint(run.stderr)
         }
         return cells(file)

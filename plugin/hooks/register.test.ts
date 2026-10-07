@@ -15,22 +15,41 @@ type Ink = { width: number; above: number; below: number }
 // A letter's ink: what `typst eval` reports for an inline formula by default.
 const LETTER: Ink = { width: 8, above: 7.9, below: 0.2 }
 
-/**
- * Stands in for the host beneath the plugin: an empty cache, a typst that
- * always succeeds (measuring every formula as `ink`), and an optional macros
- * file. `run` may answer a command first, as a result or a refusal. Returns
- * each `typst compile` argv.
- */
 type Run = (argv: string[]) => { exitCode: number; stdout: string; stderr: string } | { deny: string } | undefined
 
+type Machine = { terminal?: string; tmux?: string; typst?: string }
+
+// Ghostty on a Mac, typst 0.15: a machine texel draws on.
+const GHOSTTY: Machine = { terminal: 'ghostty', typst: 'typst 0.15.1 (test)' }
+
+/**
+ * Stands in for the host beneath the plugin: a machine (by default one texel
+ * draws on), an empty cache, a typst that always succeeds (measuring every
+ * formula as `ink`), and an optional macros file. `run` may answer a command
+ * first, as a result or a refusal. Returns each `typst compile` argv.
+ */
 function host(
   on: On,
-  { macros, ink = LETTER, png = [47, 51], run }: { macros?: string; ink?: Ink; png?: [number, number]; run?: Run } = {},
+  {
+    macros,
+    ink = LETTER,
+    png = [47, 51],
+    run,
+    machine = GHOSTTY,
+  }: { macros?: string; ink?: Ink; png?: [number, number]; run?: Run; machine?: Machine } = {},
 ) {
   const compiles: string[][] = []
-  const stdout = (argv: string[]) =>
-    argv[0] === 'defaults' ? 'Dark' : argv[1] === 'eval' ? JSON.stringify(ink) : '/Users/test'
+  // In the order register.tsx's FACTS prints them: home, os, XDG, TERM, TERM_PROGRAM, KITTY, TMUX.
+  const facts = ['/Users/test', 'Darwin', '', 'xterm-ghostty', machine.terminal ?? '', '', machine.tmux ?? ''].join('\n')
+  const stdout = (argv: string[]) => {
+    if (argv[0] === 'defaults') return 'Dark'
+    if (argv[0] === '/bin/sh') return argv.includes('prune') ? '' : facts
+    if (argv[1] === '--version') return machine.typst ?? ''
+    if (argv[1] === 'eval') return JSON.stringify(ink)
+    return ''
+  }
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  on('config.list', () => ({ value: [{ key: 'theme', value: 'dark' }] }) as never)
   on('process.run', async (_$, e) => {
     const { argv } = e as { argv: string[] }
     const answer = run?.(argv)
@@ -181,4 +200,29 @@ test('a run cut short is tried again on the next draw', { timeoutMs: 15000 }, as
   expect(await first.findAll({ type: 'Image' })).toHaveLength(0)
   const second = await $.ui.mount({ plugin: 'texel', surface: 'terminal', component: 'AssistantMessage', props })
   expect(await second.findAll({ type: 'Image' })).toHaveLength(1)
+})
+
+test('in a terminal that cannot show images, the engine draws the row', { timeoutMs: 15000 }, async ($, on) => {
+  host(on, { machine: { ...GHOSTTY, tmux: '/tmp/tmux-501/default' } })
+  const drawing = await $.ui.mount({
+    plugin: 'texel',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: 'so \\(x\\) here', isFirstOfReply: true },
+  })
+  expect((await drawing.find({ type: 'Text' }))?.text).toBe('engine')
+})
+
+test('without typst, the engine draws the row and texel says why, once', { timeoutMs: 15000 }, async ($, on) => {
+  const toasts: string[] = []
+  host(on, { machine: { terminal: 'ghostty' } })
+  on('ui.toast', (_$, e) => {
+    toasts.push((e as { text: string }).text)
+    return { value: undefined } as never
+  })
+  const props = { text: 'so \\(x\\) here', isFirstOfReply: true }
+  const first = await $.ui.mount({ plugin: 'texel', surface: 'terminal', component: 'AssistantMessage', props })
+  await $.ui.mount({ plugin: 'texel', surface: 'terminal', component: 'AssistantMessage', props })
+  expect((await first.find({ type: 'Text' }))?.text).toBe('engine')
+  expect(toasts).toEqual(['texel: typst not found; install typst 0.12 or newer to render math'])
 })

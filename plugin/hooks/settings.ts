@@ -5,6 +5,7 @@
 import type { PluginOptions } from 'claude-code'
 
 import { DEFAULT_FIT, type FitOptions } from './layout/fit'
+import { FONTS, type FontName, type TerminalFont } from './terminal'
 
 export type Settings = {
   /** Ink colours, six hex digits; unset follows the theme's text colour. */
@@ -13,7 +14,14 @@ export type Settings = {
   /** Inline math's size: 1 matches the text's x-height. */
   inlineScale: number
   fit: FitOptions
+  /** The terminal font's proportions: a preset's, or the person's own. */
+  font: TerminalFont
+  /** Whether to draw pictures: `auto` asks the terminal's environment. */
+  images: 'auto' | 'always' | 'never'
 }
+
+/** What `terminalFont` names when the person gives the proportions themselves. */
+export const CUSTOM_FONT = 'Custom'
 
 function number(options: PluginOptions, name: string, fallback: number, min: number, max: number) {
   const value = Number(options[name] ?? fallback)
@@ -23,6 +31,24 @@ function number(options: PluginOptions, name: string, fallback: number, min: num
 // Six hex digits, with or without `#`; anything else counts as unset.
 function color(options: PluginOptions, name: string) {
   return /^#?([0-9a-f]{6})$/i.exec(String(options[name] ?? '').trim())?.[1]?.toLowerCase()
+}
+
+// One of `choices`, else the first.
+function choice<T extends string>(options: PluginOptions, name: string, choices: readonly T[]): T {
+  const value = options[name]
+  return choices.includes(value as T) ? (value as T) : choices[0]!
+}
+
+function font(options: PluginOptions): TerminalFont {
+  const name = String(options.terminalFont ?? '')
+  if (name in FONTS) return FONTS[name as FontName]
+  if (name !== CUSTOM_FONT) return FONTS['JetBrains Mono']
+  const preset = FONTS['JetBrains Mono']
+  return {
+    aspect: number(options, 'fontAspect', preset.aspect, 1, 4),
+    xHeight: number(options, 'fontXHeight', preset.xHeight, 0.2, 0.7),
+    baseline: number(options, 'fontBaseline', preset.baseline, 0.5, 0.95),
+  }
 }
 
 export function readSettings(options: PluginOptions): Settings {
@@ -36,5 +62,7 @@ export function readSettings(options: PluginOptions): Settings {
       shiftUp: number(options, 'inlineShiftUp', DEFAULT_FIT.shiftUp, 0, 1),
       shiftDown: number(options, 'inlineShiftDown', DEFAULT_FIT.shiftDown, 0, 1),
     },
+    font: font(options),
+    images: choice(options, 'images', ['auto', 'always', 'never']),
   }
 }
