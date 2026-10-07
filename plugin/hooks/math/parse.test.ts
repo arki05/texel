@@ -22,7 +22,7 @@ describe('parse', () => {
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
     expect(seg.lines[0]?.atoms).toEqual([
       { kind: 'text', text: 'The area ' },
-      { kind: 'math', tex: '\\pi r^2', display: false },
+      { kind: 'math', tex: '\\pi r^2' },
       { kind: 'text', text: ', ' },
       { kind: 'text', text: 'grows', bold: true },
       { kind: 'text', text: ' fast.' },
@@ -37,7 +37,7 @@ describe('parse', () => {
   test('prices next to code spans stay prose', () => {
     const [seg] = parse('Euler $e^{i\\pi}$. Prices like $5 and $10 stay text, and so does `$HOME`.')
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
-    expect(seg.lines[0]?.atoms.filter(a => a.kind === 'math')).toEqual([{ kind: 'math', tex: 'e^{i\\pi}', display: false }])
+    expect(seg.lines[0]?.atoms.filter(a => a.kind === 'math')).toEqual([{ kind: 'math', tex: 'e^{i\\pi}' }])
   })
 
   test('delimiters inside code spans are not math', () => {
@@ -51,8 +51,9 @@ describe('parse', () => {
     expect(needsRender(parse('A lone $$ here.\n\nAnd another $$ there.'))).toBe(false)
   })
 
-  test('empty display math stays source', () => {
+  test('empty math stays source', () => {
     expect(needsRender(parse('$$  $$'))).toBe(false)
+    expect(needsRender(parse('an empty \\(  \\) here'))).toBe(false)
   })
 
   test('\\( \\) and \\[ \\] are math; \\$ is a dollar', () => {
@@ -60,17 +61,10 @@ describe('parse', () => {
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
     expect(seg.lines[0]?.atoms).toEqual([
       { kind: 'text', text: 'Take ' },
-      { kind: 'math', tex: '\\frac{x^2}{y}', display: false },
+      { kind: 'math', tex: '\\frac{x^2}{y}' },
       { kind: 'text', text: ' for $3.' },
     ])
     expect(parse('\\[\\forall x: \\sum x\\]').map(s => s.kind)).toEqual(['display'])
-  })
-
-  test('inline math asking for display style is marked', () => {
-    const [seg] = parse('a \\( \\displaystyle \\sum_k k \\), b \\( \\dfrac{1}{2} \\), c \\( \\frac{1}{2} \\)')
-    if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
-    const math = seg.lines[0]?.atoms.flatMap(a => (a.kind === 'math' ? [a.display] : []))
-    expect(math).toEqual([true, true, false])
   })
 
   test('display delimiters mid-sentence split the paragraph, as in LaTeX', () => {

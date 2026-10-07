@@ -3,8 +3,7 @@
 
 export type Atom =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean; code?: boolean }
-  /** `display`: it asks for display style (`\displaystyle`, `\dfrac`), so needs room. */
-  | { kind: 'math'; tex: string; display: boolean }
+  | { kind: 'math'; tex: string }
 
 export type InlineLine = {
   /** What leads the line: a list marker, a quote bar, or nothing. */
@@ -26,7 +25,8 @@ const TYPST_FENCES = new Set(['typst', 'typ'])
 // `$…$` follows pandoc's rule: no space just inside either dollar, and no digit
 // right after the closing one, so "$5 and $10" stays prose; `\$` is a dollar.
 const INLINE_DOLLAR = String.raw`(?<![\\$\w])\$(?=[^\s$])((?:\\\$|[^$\n])+?)(?<=[^\s\\])\$(?![\d$])`
-const INLINE_PAREN = String.raw`\\\((.+?)\\\)`
+// `\( \)` around nothing but spaces is left as text.
+const INLINE_PAREN = String.raw`\\\(([^\n]*?\S[^\n]*?)\\\)`
 const HAS_INLINE = new RegExp(`${INLINE_DOLLAR}|${INLINE_PAREN}`)
 // Display math is always a block of its own, as in LaTeX: mid-sentence it splits
 // the paragraph. It never crosses a blank line, so one stray `$$` cannot swallow
@@ -52,12 +52,6 @@ const TOKEN = new RegExp(
 
 type Style = { bold?: boolean; italic?: boolean }
 
-const DISPLAY_STYLE = /\\(?:displaystyle|dfrac)\b/
-
-function math(tex: string): Atom {
-  return { kind: 'math', tex: tex.trim(), display: DISPLAY_STYLE.test(tex) }
-}
-
 function tokenizeProse(text: string, style: Style): Atom[] {
   const atoms: Atom[] = []
   const pushText = (t: string) => {
@@ -67,7 +61,7 @@ function tokenizeProse(text: string, style: Style): Atom[] {
   for (const m of text.matchAll(TOKEN)) {
     pushText(text.slice(last, m.index))
     last = m.index + m[0].length
-    if (m[1] !== undefined || m[2] !== undefined) atoms.push(math((m[1] ?? m[2])!))
+    if (m[1] !== undefined || m[2] !== undefined) atoms.push({ kind: 'math', tex: (m[1] ?? m[2])!.trim() })
     else if (m[3] !== undefined || m[4] !== undefined) atoms.push(...tokenizeProse((m[3] ?? m[4])!, { ...style, bold: true }))
     else if (m[5] !== undefined || m[6] !== undefined) atoms.push(...tokenizeProse((m[5] ?? m[6])!, { ...style, italic: true }))
     else if (m[7] !== undefined) atoms.push(...tokenizeProse(m[7], style))
@@ -120,8 +114,10 @@ function paragraphLines(paragraph: string): InlineLine[] {
 function proseSegments(text: string, out: Segment[]) {
   for (const paragraph of text.split(/\n[ \t]*\n/)) {
     if (!paragraph.trim()) continue
-    if (hasInlineMath(paragraph) && isLayoutable(paragraph)) {
-      out.push({ kind: 'paragraph', lines: paragraphLines(paragraph), source: paragraph })
+    const lines = hasInlineMath(paragraph) && isLayoutable(paragraph) ? paragraphLines(paragraph) : []
+    // Only math that will render earns our own layout; the rest is the engine's.
+    if (lines.some(line => line.atoms.some(atom => atom.kind === 'math'))) {
+      out.push({ kind: 'paragraph', lines, source: paragraph })
     } else {
       pushMarkdown(out, paragraph)
     }

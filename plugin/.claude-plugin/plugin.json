@@ -2,5 +2,49 @@
   "name": "texel",
   "version": "0.1.0",
   "description": "Renders math, typst and diagrams inline in the Claude Code transcript",
-  "author": { "name": "Julius Arkenberg", "email": "julius@rkenberg.de" }
+  "author": { "name": "Julius Arkenberg", "email": "julius@rkenberg.de" },
+  "userConfig": {
+    "mathColor": {
+      "type": "string",
+      "title": "Math colour",
+      "description": "Colour of LaTeX math, inline and display, as hex (#b3bd5a); empty for the text colour.",
+      "default": "#b3bd5a"
+    },
+    "typstColor": {
+      "type": "string",
+      "title": "Typst block colour",
+      "description": "Colour of typst blocks' text, as hex; empty for the text colour.",
+      "default": ""
+    },
+    "inlineSize": {
+      "type": "number",
+      "title": "Inline math size",
+      "description": "Inline math's size against the terminal text: 1 matches its x-height.",
+      "default": 1.2
+    },
+    "inlineMaxScale": {
+      "type": "number",
+      "title": "Inline math: largest scale",
+      "description": "How far a formula smaller than its row may grow to fill it (1: never).",
+      "default": 1
+    },
+    "inlineMinScale": {
+      "type": "number",
+      "title": "Inline math: smallest scale",
+      "description": "How far a formula may shrink before its line gains a row instead.",
+      "default": 0.75
+    },
+    "inlineShiftUp": {
+      "type": "number",
+      "title": "Inline math: shift up (rows)",
+      "description": "How far above the text's baseline a formula may sit to save a row.",
+      "default": 0.5
+    },
+    "inlineShiftDown": {
+      "type": "number",
+      "title": "Inline math: shift down (rows)",
+      "description": "How far below the text's baseline a formula may sit to save a row.",
+      "default": 0.5
+    }
+  }
 }

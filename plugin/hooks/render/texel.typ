@@ -13,7 +13,8 @@
 // The terminal's grid and font, as the hooks module measured or assumed them.
 #let cw = length("cell-width")
 #let ch = length("cell-height")
-#let maxw = int(input("max-columns")) * cw
+// The widest a figure may be; measuring passes none.
+#let maxw = int(sys.inputs.at("max-columns", default: "1000")) * cw
 // Where the text's baseline sits in a row, as a fraction of it from the top.
 #let baseline = float(input("baseline"))
 
@@ -40,42 +41,43 @@
 
 #let nonempty(m) = if m.width == 0pt or m.height == 0pt { panic("empty render") }
 
-// In a line of prose: `rows` tall with the text in the middle row (one row,
-// or three for display style, which LaTeX also gives room above and below).
-// Size wins over alignment: the formula shrinks only when taller than its
-// rows; otherwise it sits on the text's baseline, slid up or down just enough
-// to stay inside them.
-#let inline-math(body, rows: 1) = context {
+// Inline math is placed in two passes. `inline-ink` reports the formula's ink
+// at its natural size; the hooks module decides from it how many rows the
+// line needs and where the formula sits (fit.ts); `inline-latex` draws it so.
+
+// Width, and ink above and below the baseline, in points.
+#let ink(body) = {
   let m = measure(body)
   nonempty(m)
-  // Ink below the baseline: beside a strut standing on the baseline, the line
-  // grows by exactly that much.
+  // Beside a strut standing on the baseline, the line grows by exactly the
+  // ink below it.
   let below = measure([#body#box(width: 0pt, height: 1000pt)]).height - 1000pt
-  let above = m.height - below
-  let height = rows * ch
-  let base = (rows - 1) / 2 * ch + baseline * ch
-  let s = calc.min(1.0, height * 0.98 / m.height, maxw / m.width)
-  let dy = calc.min(calc.max(base - above * s, 0pt), height - m.height * s)
-  let cols = calc.max(1, calc.ceil(m.width * s / cw))
-  box(width: cols * cw, height: height, place(
-    top + center,
-    dy: dy,
-    scale(s * 100%, origin: top + left, reflow: true, body),
-  ))
+  (width: m.width / 1pt, above: (m.height - below) / 1pt, below: below / 1pt)
 }
 
-// Inline LaTeX, from the `tex` input: three rows when it asks for display
-// style, one otherwise.
-#let inline-latex() = inline-math(latex(), rows: if input("style") == "display" { 3 } else { 1 })
+// The `tex` input's ink, for `typst eval` to read back as `<ink>`.
+#let inline-ink() = context [#metadata(ink(latex())) <ink>]
 
-// An equation on its own: centred, shrunk to fit the width (it cannot wrap).
+// The `tex` input drawn as fitted: `fit-scale` times its natural size,
+// `fit-dy` down from the top of a box `fit-rows` x `fit-columns` cells.
+#let inline-latex() = box(
+  width: int(input("fit-columns")) * cw,
+  height: int(input("fit-rows")) * ch,
+  place(
+    top + center,
+    dy: length("fit-dy"),
+    scale(float(input("fit-scale")) * 100%, origin: top + left, reflow: true, latex()),
+  ),
+)
+
+// An equation on its own, at its natural size whatever the width: only inline
+// math is ever scaled. One wider than the transcript is the view's to handle.
 #let display-math(body) = context {
   let m = measure(body)
   nonempty(m)
-  let s = calc.min(1.0, maxw / (m.width + cw))
-  let cols = calc.max(1, calc.ceil((m.width + cw) * s / cw))
-  let rows = calc.max(1, calc.ceil((m.height * s + ch * 0.5) / ch))
-  box(width: cols * cw, height: rows * ch, align(center + horizon, scale(s * 100%, reflow: true, body)))
+  let cols = calc.max(1, calc.ceil((m.width + cw) / cw))
+  let rows = calc.max(1, calc.ceil((m.height + ch * 0.5) / ch))
+  box(width: cols * cw, height: rows * ch, align(center + horizon, body))
 }
 
 // A typst block: a figure that fits is centred at its own size; anything
@@ -88,7 +90,10 @@
     let rows = calc.max(1, calc.ceil((m.height + ch * 0.5) / ch))
     box(width: cols * cw, height: rows * ch, align(center + horizon, body))
   } else {
-    let h = measure(block(width: maxw, body)).height
-    box(width: maxw, height: calc.max(1, calc.ceil(h / ch)) * ch, body)
+    // Typst measures prose from the first line's cap height to the last one's
+    // baseline: room above for ascenders and accents, below for descenders.
+    let (top, bottom) = (0.25 * ch, 0.45 * ch)
+    let h = measure(block(width: maxw, body)).height + top + bottom
+    box(width: maxw, height: calc.max(1, calc.ceil(h / ch)) * ch, inset: (top: top), body)
   }
 }
