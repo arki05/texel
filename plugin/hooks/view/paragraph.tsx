@@ -23,7 +23,7 @@ function drawWrapped(ctx: ViewContext, row: Line<Formula>, lead: RenderElement[]
         </Box>
       ) : (
         <Box marginTop={row.above - piece.above}>
-          {image(ctx.ui, piece.box.file, piece.columns, piece.box.rows, formulaSource(piece.box.tex))}
+          {image(ctx.ui, piece.box.picture, piece.columns, piece.box.rows, formulaSource(piece.box.tex))}
         </Box>
       ),
     ),

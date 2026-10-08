@@ -1,0 +1,28 @@
+import { describe, expect, test } from 'claude-code/testing'
+
+import { importsPackage, program, widthFree, type TypstStyle } from './program'
+
+const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }, color: 'e6e6e6' }
+const block = (maxColumns: number, typst = 'hi') => ({ kind: 'typst', typst, maxColumns }) as const
+
+describe('program', () => {
+  test("the block's markup is the body of texel.typ's typst-block; the rest are inputs", () => {
+    const { source, inputs } = program(block(80, '= Title'), style)
+    expect(source).toBe('#import "/texel.typ": *\n#typst-block[\n= Title\n]\n')
+    expect(inputs).toEqual({ 'cell-width': '7.8', 'cell-height': '17', 'x-height': '7.15', foreground: 'e6e6e6', 'max-columns': '80' })
+  })
+
+  test('a block depends on the width; width-free, its programs agree', () => {
+    expect(program(block(40), style)).not.toEqual(program(block(120), style))
+    expect(widthFree(program(block(40), style))).toEqual(widthFree(program(block(120), style)))
+  })
+})
+
+describe('importsPackage', () => {
+  test('a package import or include is one; local files and plain text are not', () => {
+    expect(importsPackage('#import "@preview/cetz:0.4.2"\n#cetz.canvas({})')).toBe(true)
+    expect(importsPackage('#include "@local/notes:0.1.0"')).toBe(true)
+    expect(importsPackage('#import "util.typ": *')).toBe(false)
+    expect(importsPackage('mail me at "@preview/x" later')).toBe(false)
+  })
+})

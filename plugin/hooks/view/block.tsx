@@ -4,7 +4,8 @@
 import type { RenderElement } from 'claude-code'
 
 import { isFailure, reason } from '../render/result'
-import { importsPackage, type DrawJob } from '../render/typst'
+import type { DrawJob } from '../render/renderer'
+import { importsPackage } from '../render/typst/program'
 import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
 
 /**
@@ -28,7 +29,7 @@ export async function drawBlock(ctx: ViewContext, job: DrawJob, source: string, 
   }
   return (
     <Box justifyContent="center" width="100%">
-      {image(ctx.ui, drawn.file, drawn.columns, drawn.rows, alt)}
+      {image(ctx.ui, drawn.picture, drawn.columns, drawn.rows, alt)}
     </Box>
   )
 }

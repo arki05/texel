@@ -1,0 +1,1 @@
+import{a as t}from"./chunk-EK7ODJWE.js";var i=t(e=>{"use strict";Object.defineProperty(e,"__esModule",{value:!0});e.scriptBold=void 0;e.scriptBold={}});var d=t(r=>{Object.defineProperty(r,"__esModule",{value:!0});r.scriptBold=void 0;var o=i();Object.defineProperty(r,"scriptBold",{enumerable:!0,get:function(){return o.scriptBold}})});export{d as a};

@@ -14,6 +14,7 @@ describe('readSettings', () => {
       font: FONTS['JetBrains Mono'],
       images: 'auto',
       typstPackages: true,
+      promptNote: true,
     })
   })
 

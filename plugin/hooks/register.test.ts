@@ -1,16 +1,10 @@
-import type { On } from 'claude-code'
+import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 
-// The whole mod against a stubbed host: what it draws, and what it asks typst.
+// The whole mod against a stubbed host: what it draws, what it asks typst,
+// what it tells the model. LaTeX goes through the real MathJax; typst is stubbed.
 
-type Ink = { width: number; above: number; below: number }
-
-// A letter's ink: what `typst eval` reports for an inline formula by default.
-const LETTER: Ink = { width: 8, above: 7.9, below: 0.2 }
-// κ_c(t) = g_c ℓ_c(t): one row holds it at 0.86 of its size.
-const SUBSCRIPTS: Ink = { width: 123, above: 14.5, below: 4.9 }
-
-// The first 24 bytes of a PNG: enough for the renderer to read its size.
+// The first 24 bytes of a PNG: enough for the typst backend to read its size.
 function fakePng(width: number, height: number) {
   const bytes = new Uint8Array(24)
   const view = new DataView(bytes.buffer)
@@ -24,25 +18,24 @@ type Run = (argv: string[]) => { exitCode: number; stdout: string; stderr: strin
 
 type Machine = { terminal?: string; tmux?: string; typst?: string }
 
-// Ghostty on a Mac, typst 0.15: a machine texel draws on.
+// Ghostty on a Mac with typst 0.15: a machine texel draws on, typst blocks included.
 const GHOSTTY: Machine = { terminal: 'ghostty', typst: 'typst 0.15.1 (test)' }
 
-type World = { macros?: string; ink?: Ink; png?: [number, number]; run?: Run; machine?: Machine }
+type World = { macros?: string; png?: [number, number]; run?: Run; machine?: Machine }
 
 /**
  * The host beneath the plugin: a machine (by default one texel draws on), an
- * empty cache, a typst that always succeeds (measuring every formula as
- * `ink`, drawing `png`-sized pictures) and an optional macros file. Returns
- * each `typst compile` argv, and `show`, which mounts a message and lets the
- * work it started in the background finish before the test looks.
+ * empty cache, a typst that always succeeds drawing `png`-sized pictures, and
+ * an optional macros file. Returns each `typst compile` argv, and `show`,
+ * which mounts a message and lets work started in the background finish
+ * before the test looks.
  */
-function world(on: On, { macros, ink = LETTER, png = [47, 51], run, machine = GHOSTTY }: World = {}) {
+function world(on: On, { macros, png = [47, 51], run, machine = GHOSTTY }: World = {}) {
   const compiles: string[][] = []
   const stdout = (argv: string[]) => {
     if (argv[0] === 'uname') return 'Darwin\n'
     if (argv[0] === 'defaults') return 'Dark'
     if (argv[1] === '--version') return machine.typst ?? ''
-    if (argv[1] === 'eval') return JSON.stringify(ink)
     return ''
   }
   const env = { HOME: '/Users/test', TERM: 'xterm-256color', TERM_PROGRAM: machine.terminal, TMUX: machine.tmux }
@@ -58,7 +51,6 @@ function world(on: On, { macros, ink = LETTER, png = [47, 51], run, machine = GH
     return { value: { exitCode: 0, stdout: stdout(argv), stderr: '' } } as never
   })
   on('fs.exists', () => ({ value: false }) as never)
-  on('fs.write', () => ({ value: undefined }) as never)
   on('fs.read', (_$, e) => {
     const { path } = e as { path: string }
     if (path.endsWith('macros.tex')) return (macros === undefined ? { deny: 'no macros file' } : { value: macros }) as never
@@ -83,6 +75,30 @@ function world(on: On, { macros, ink = LETTER, png = [47, 51], run, machine = GH
 
 const input = (argv: string[] | undefined, name: string) => argv?.find(arg => arg.startsWith(`${name}=`))?.slice(name.length + 1)
 
+type ImageProps = { source: { rgba?: string; file?: string }; columns: number; rows: number }
+
+// Every Image in a drawn tree, in order.
+function images(tree: RenderElement): ImageProps[] {
+  const node = tree as unknown as { type?: string; props?: ImageProps; children?: unknown[] }
+  const own = node.type === 'Image' && node.props ? [node.props] : []
+  return [...own, ...(node.children ?? []).flatMap(child => (child && typeof child === 'object' ? images(child as RenderElement) : []))]
+}
+
+// The colour of a MathJax picture's first fully inked pixel, as six hex digits.
+function inkColour({ source }: ImageProps) {
+  const bytes = Uint8Array.from(atob(source.rgba!), c => c.charCodeAt(0))
+  const at = [...Array(bytes.length / 4).keys()].find(i => bytes[i * 4 + 3] === 255)!
+  return [...bytes.subarray(at * 4, at * 4 + 3)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// `/texel` typed by the person, with what follows the name.
+const texel = ($: Engine, args = '') =>
+  $.command.run({ command: 'texel', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+
+// The system prompt as it would be composed for a terminal session.
+const composed = ($: Engine) =>
+  $.prompt.compose({ model: 'claude', promptModel: 'claude', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] })
+
 // A typst run that is cut short `times` times before it succeeds.
 function cutShort(times: number): Run {
   let left = times
@@ -93,12 +109,13 @@ function cutShort(times: number): Run {
   }
 }
 
-test('a reply with display and inline math draws Images', { timeoutMs: 15000 }, async ($, on) => {
+test('a reply with display and inline math draws them as pictures, typst never asked', { timeoutMs: 15000 }, async ($, on) => {
   const { compiles, show } = world(on)
   const drawing = await show($, 'So \\(x^2\\) grows:\n\n\\[\\int_0^1 x\\,dx\\]\n\ndone.')
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(2)
-  // The LaTeX travels as an input, never spliced into source.
-  expect(compiles.map(argv => input(argv, 'tex')).sort()).toEqual(['\\int_0^1 x\\,dx', 'x^2'])
+  const drawn = images(await drawing.drawn())
+  expect(drawn).toHaveLength(2)
+  expect(drawn.every(image => image.source.rgba)).toBe(true)
+  expect(compiles).toHaveLength(0)
 })
 
 test('replies without math are left to the engine', { timeoutMs: 15000 }, async ($, on) => {
@@ -108,67 +125,61 @@ test('replies without math are left to the engine', { timeoutMs: 15000 }, async 
 })
 
 test('your own prompts render too, with your macros', { timeoutMs: 15000 }, async ($, on) => {
-  const { compiles, show } = world(on, { macros: '\\newcommand{\\N}{\\mathbb{N}}' })
+  const { show } = world(on, { macros: '\\newcommand{\\N}{\\mathbb{N}}' })
   const drawing = await show($, 'is \\( n \\in \\N \\) right?', { prompt: true })
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(1)
-  expect(input(compiles[0], 'macros')).toBe('\\newcommand{\\N}{\\mathbb{N}}')
+  expect(images(await drawing.drawn())).toHaveLength(1)
 })
 
-test('a formula a little too tall keeps its row by default', { timeoutMs: 15000 }, async ($, on) => {
-  const { compiles, show } = world(on, { ink: SUBSCRIPTS })
-  await show($, 'the ladder \\(\\kappa_c(t)\\) holds')
-  expect(input(compiles[0], 'fit-rows')).toBe('1')
+test('an ordinary formula keeps its row', { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
+  const drawing = await show($, 'the ladder \\(\\kappa_c(t) = g_c \\ell_c(t)\\) holds')
+  expect(images(await drawing.drawn())[0]?.rows).toBe(1)
 })
 
-test('a stricter smallest scale gives it a row instead', { timeoutMs: 15000, options: { inlineMinScale: 0.95 } }, async ($, on) => {
-  const { compiles, show } = world(on, { ink: SUBSCRIPTS })
-  await show($, 'the ladder \\(\\kappa_c(t)\\) holds')
-  expect(input(compiles[0], 'fit-rows')).toBe('2')
+test('with a stricter smallest scale, the same formula takes a row', { timeoutMs: 15000, options: { inlineMinScale: 0.95 } }, async ($, on) => {
+  const { show } = world(on)
+  const drawing = await show($, 'the ladder \\(\\kappa_c(t) = g_c \\ell_c(t)\\) holds')
+  expect(images(await drawing.drawn())[0]?.rows).toBe(2)
 })
 
 test('display math wider than the transcript keeps its size and shows its source', { timeoutMs: 15000 }, async ($, on) => {
-  // 30 cells wide at 216 ppi; the transcript leaves 16.
-  const { compiles, show } = world(on, { png: [Math.round(30 * 7.8 * 3), 51] })
-  const drawing = await show($, '\\[ a + b + c + d \\]', { columns: 20 })
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(0)
-  expect(await drawing.find({ text: 'wider than the transcript (30 > 16 columns)' })).toBeDefined()
-  // Display math never depends on the width, so a resize reuses it.
-  expect(input(compiles[0], 'max-columns')).toBe(undefined)
+  const { show } = world(on)
+  const drawing = await show($, '\\[ a + b + c + d + e + f + g + h + i + j + k + l + m \\]', { columns: 20 })
+  expect(images(await drawing.drawn())).toHaveLength(0)
+  expect(await drawing.find({ text: 'wider than the transcript' })).toBeDefined()
 })
 
 test('math takes the math colour, typst blocks the text colour', { timeoutMs: 15000 }, async ($, on) => {
   const { compiles, show } = world(on)
-  await show($, 'so \\(x\\)\n\n```typst\nhi\n```')
-  const colourOf = (argv: string[] | undefined) => input(argv, 'foreground')
-  expect(colourOf(compiles.find(argv => input(argv, 'tex') === 'x'))).toBe('b3bd5a')
-  expect(colourOf(compiles.find(argv => input(argv, 'max-columns')))).toBe('e6e6e6')
-})
-
-test('an empty math colour follows the text', { timeoutMs: 15000, options: { mathColor: '' } }, async ($, on) => {
-  const { compiles, show } = world(on)
-  await show($, 'so \\(x\\)')
+  const drawing = await show($, 'so \\(x\\)\n\n```typst\nhi\n```')
+  expect(inkColour(images(await drawing.drawn())[0]!)).toBe('b3bd5a')
   expect(input(compiles[0], 'foreground')).toBe('e6e6e6')
 })
 
-test('an inline formula typst rejects shows its source and why', { timeoutMs: 15000 }, async ($, on) => {
-  const failing: Run = argv => (argv[1] === 'eval' ? { exitCode: 1, stdout: '', stderr: 'error: unknown command: \\foo\n  ┌─ <stdin>' } : undefined)
-  const { show } = world(on, { run: failing })
+test('an empty math colour follows the text', { timeoutMs: 15000, options: { mathColor: '' } }, async ($, on) => {
+  const { show } = world(on)
+  const drawing = await show($, 'so \\(x\\)')
+  expect(inkColour(images(await drawing.drawn())[0]!)).toBe('e6e6e6')
+})
+
+test('an inline formula TeX rejects shows its source and why', { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
   const drawing = await show($, 'see \\(\\foo{x}\\) here')
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(0)
-  expect(await drawing.find({ text: ' (unknown command: \\foo)' })).toBeDefined()
+  expect(images(await drawing.drawn())).toHaveLength(0)
+  expect(await drawing.find({ text: ' (Undefined control sequence \\foo)' })).toBeDefined()
 })
 
-test('a run cut short is tried again, and its picture drawn when it succeeds', { timeoutMs: 15000 }, async ($, on) => {
+test('a typst run cut short is tried again, and its picture drawn when it succeeds', { timeoutMs: 15000 }, async ($, on) => {
   const { show } = world(on, { run: cutShort(1) })
-  const drawing = await show($, 'so \\(x\\) here')
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(1)
+  const drawing = await show($, '```typst\nhi\n```')
+  expect(images(await drawing.drawn())).toHaveLength(1)
 })
 
-test('a run cut short again and again stops being tried, and says why', { timeoutMs: 15000 }, async ($, on) => {
+test('a typst run cut short again and again stops being tried, and says why', { timeoutMs: 15000 }, async ($, on) => {
   const { show } = world(on, { run: cutShort(Infinity) })
-  const drawing = await show($, 'so \\(x\\) here')
-  expect(await drawing.findAll({ type: 'Image' })).toHaveLength(0)
-  expect(await drawing.find({ text: '\\(x\\)' })).toBeDefined()
+  const drawing = await show($, '```typst\nhi\n```')
+  expect(images(await drawing.drawn())).toHaveLength(0)
+  expect(await drawing.find({ text: 'render failed' })).toBeDefined()
 })
 
 test('in a terminal that cannot show images, the engine draws the row', { timeoutMs: 15000 }, async ($, on) => {
@@ -177,17 +188,12 @@ test('in a terminal that cannot show images, the engine draws the row', { timeou
   expect((await drawing.find({ type: 'Text' }))?.text).toBe('engine')
 })
 
-test('without typst, the engine draws the row and texel says why, once', { timeoutMs: 15000 }, async ($, on) => {
-  const toasts: string[] = []
-  const { show } = world(on, { machine: { terminal: 'ghostty' } })
-  on('ui.toast', (_$, e) => {
-    toasts.push((e as { text: string }).text)
-    return { value: undefined } as never
-  })
-  const first = await show($, 'so \\(x\\) here')
-  await show($, 'so \\(x\\) here')
-  expect((await first.find({ type: 'Text' }))?.text).toBe('engine')
-  expect(toasts).toEqual(['texel: typst not found; install typst 0.15 or newer, then /reload-plugins, to render math'])
+test('without typst, LaTeX still renders and a typst block says what it needs', { timeoutMs: 15000 }, async ($, on) => {
+  const { compiles, show } = world(on, { machine: { terminal: 'ghostty' } })
+  const drawing = await show($, 'so \\(x\\)\n\n```typst\nhi\n```')
+  expect(images(await drawing.drawn())).toHaveLength(1)
+  expect(await drawing.find({ text: 'needs typst 0.15 or newer, which is not installed' })).toBeDefined()
+  expect(compiles).toHaveLength(0)
 })
 
 test('with typstPackages off, a typst block importing a package shows its source', { timeoutMs: 15000, options: { typstPackages: false } }, async ($, on) => {
@@ -195,4 +201,35 @@ test('with typstPackages off, a typst block importing a package shows its source
   const drawing = await show($, '```typst\n#import "@preview/cetz:0.4.2"\nhi\n```')
   expect(await drawing.find({ text: 'not rendered: it imports a package, and typstPackages is off in /config' })).toBeDefined()
   expect(compiles).toHaveLength(0)
+})
+
+test('/texel source shows every message as its source, and again renders', { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
+  expect((await texel($, 'source')).text).toContain('showing sources')
+  expect((await (await show($, 'so \\(x\\) here')).find({ type: 'Text' }))?.text).toBe('engine')
+  await texel($, 'source')
+  expect(images(await (await show($, 'so \\(x\\) here')).drawn())).toHaveLength(1)
+})
+
+test('/texel says what texel draws with', { timeoutMs: 15000 }, async ($, on) => {
+  world(on, { machine: { terminal: 'ghostty' } })
+  const { text } = await texel($)
+  expect(text).toContain('LaTeX math: MathJax, built in')
+  expect(text).toContain('typst blocks: off, needs typst 0.15 or newer')
+})
+
+test('the model is told about LaTeX always, and typst blocks only with typst', { timeoutMs: 15000 }, async ($, on) => {
+  world(on, { machine: { terminal: 'ghostty' } })
+  on('prompt.compose', () => ({ sections: [] }) as never)
+  const { sections } = await composed($)
+  const note = sections.find(section => section.id === 'texel:math')
+  expect(note?.text).toContain('\\( ... \\)')
+  expect(note?.text).not.toContain('```typst')
+})
+
+test('with typst, the model is told about typst blocks too', { timeoutMs: 15000 }, async ($, on) => {
+  world(on)
+  on('prompt.compose', () => ({ sections: [] }) as never)
+  const { sections } = await composed($)
+  expect(sections.find(section => section.id === 'texel:math')?.text).toContain('```typst')
 })

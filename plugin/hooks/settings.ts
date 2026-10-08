@@ -24,6 +24,8 @@ export type Settings = {
   images: 'auto' | 'always' | 'never'
   /** Whether a typst block may import packages, which typst downloads. */
   typstPackages: boolean
+  /** Whether the system prompt tells Claude this terminal typesets math. */
+  promptNote: boolean
 }
 
 /** What `terminalFont` names when the person gives the proportions themselves. */
@@ -71,5 +73,6 @@ export function readSettings(options: PluginOptions): Settings {
     font: font(options),
     images: choice(options, 'images', ['auto', 'always', 'never']),
     typstPackages: options.typstPackages !== false,
+    promptNote: options.promptNote !== false,
   }
 }

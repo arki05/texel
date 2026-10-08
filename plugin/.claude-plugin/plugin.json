@@ -7,6 +7,12 @@
     "email": "julius@rkenberg.de"
   },
   "userConfig": {
+    "promptNote": {
+      "type": "boolean",
+      "title": "Tell Claude it can write math",
+      "description": "Adds a short note to the system prompt: this terminal typesets LaTeX (and typst blocks, where typst is installed).",
+      "default": true
+    },
     "mathColor": {
       "type": "string",
       "title": "Math colour",

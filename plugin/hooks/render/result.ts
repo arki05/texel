@@ -1,9 +1,12 @@
 // What a render comes to: a picture of whole cells, or why there is none.
 
-/** A PNG on disk, and the cells it covers. */
-export type Rendered = { file: string; columns: number; rows: number }
+/** A picture's pixels: a PNG file typst wrote, or RGBA bytes held in memory (base64). */
+export type Picture = { file: string } | { rgba: string; width: number; height: number }
 
-/** Why a run failed; `transient` when trying again could succeed. */
+/** A picture, and the cells it covers. */
+export type Rendered = { picture: Picture; columns: number; rows: number }
+
+/** Why a render failed; `transient` when trying again could succeed. */
 export type RenderFailure = { error: string; transient?: true }
 
 export function isFailure(result: object): result is RenderFailure {

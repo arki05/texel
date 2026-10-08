@@ -1,23 +1,28 @@
 // texel's hooks: redraw assistant replies and the person's own prompts with
-// their math and typst rendered. The only module that touches `$`: it gathers
-// facts about the machine and Claude Code (host.ts and settings.ts decide what
-// they mean), prepares what the view draws with, and hands it each message.
+// their math and typst rendered, tell the model it may write math, and answer
+// /texel. The only module that touches `$`: it gathers facts about the
+// machine and Claude Code (host.ts and settings.ts decide what they mean),
+// prepares what the view draws with, and hands it each message.
 
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import { cacheDir, MIN_TYPST, pruneCommand, showsImages, themeFrom, typstFrom, type Machine, type TypstInstall } from './host'
 import { gridFor } from './layout/geometry'
 import { needsRender, parse } from './markdown/parse'
+import { PROMPT_SECTION, promptNote } from './prompt'
 import { hash } from './render/hash'
 import { Limiter } from './render/limit'
-import { createRenderer, RenderCache, type Io } from './render/renderer'
-import { cliCompiler, type Run } from './render/typst-cli'
+import { createMathBackend, MathCache } from './render/mathjax/backend'
+import { route, type TypstBackend } from './render/renderer'
+import { createTypstBackend, TypstCache, type Io } from './render/typst/backend'
+import { cliCompiler, type Run } from './render/typst/cli'
+import type { TypstStyle } from './render/typst/program'
 import { readSettings, type Settings } from './settings'
 import { drawMessage } from './view/message'
 import type { ViewContext } from './view/parts'
 
-// The folder of texel.typ and its packages, within the plugin.
-const LIB = 'hooks/render'
+// The folder of texel.typ, within the plugin.
+const LIB = 'hooks/render/typst'
 // Personal LaTeX macros (`\newcommand`s), led into every formula; the model never sees them.
 const MACROS = '.config/texel/macros.tex'
 // Claude Code's own prompt-row background, and the text colour, per theme.
@@ -34,6 +39,12 @@ type Host = { machine: Machine; typst: TypstInstall; systemIsDark: boolean; libr
 let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
 let theme: Promise<Theme> | undefined
+// `/texel source`: every message shown as its source, for reading or copying.
+let showingSource = false
+const mathCache = new MathCache()
+const typstCache = new TypstCache()
+// Typst processes at once, across every draw: a reply full of blocks queues rather than floods.
+const typstSlots = new Limiter(4)
 
 // `promise`, forgotten through `forget` should it fail, so the next draw asks
 // again rather than every draw failing until a reload.
@@ -41,10 +52,6 @@ function retried<T>(promise: Promise<T>, forget: () => void) {
   promise.catch(forget)
   return promise
 }
-let toldAboutTypst = false
-const cache = new RenderCache()
-// Typst processes at once, across every draw: a reply full of formulas queues rather than floods.
-const typstSlots = new Limiter(4)
 
 async function learnHost($: EngineInterface): Promise<Host> {
   const [home, XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX, os, version, appearance, library] = await Promise.all([
@@ -76,67 +83,68 @@ async function learnHost($: EngineInterface): Promise<Host> {
   return { machine, typst: typstFrom(version), systemIsDark: os !== 'Darwin' || appearance === 'Dark', library }
 }
 
+function hostOf($: EngineInterface) {
+  host ??= retried(learnHost($), () => (host = undefined))
+  return host
+}
+
+// Whether texel draws pictures here: a terminal that shows them, unless set otherwise.
+function draws(settings: Settings, { machine }: Host) {
+  if (settings.images === 'never') return false
+  return settings.images === 'always' || showsImages(machine)
+}
+
+const typstVersion = (typst: TypstInstall) => ('version' in typst && typst.isSupported ? typst.version : undefined)
+
 function files($: EngineInterface): Io {
   return {
     exists: path => $.fs.exists(path),
-    readText: path => $.fs.read(path),
-    writeText: (path, text) => $.fs.write(path, text),
     readBase64: async path => ((await $.fs.read(path, { as: 'bytes' })) as { base64: string }).base64,
     rename: async (from, to) => void (await $.process.run(['mv', '-f', from, to])),
   }
 }
 
-// Said once per load, when there is no typst texel can use.
-function tellAboutTypst($: EngineInterface, typst: TypstInstall) {
-  if (toldAboutTypst) return
-  toldAboutTypst = true
-  // typst is looked for once per load, so the way back is a reload.
-  const fix = `install typst ${MIN_TYPST.join('.')} or newer, then /reload-plugins, to render math`
-  $.ui.toast('missing' in typst ? `texel: typst not found; ${fix}` : `texel: typst ${typst.version} is too old; ${fix}`)
+// The typst backend, where a typst texel can use is installed.
+function typstBackend($: EngineInterface, known: Host, style: TypstStyle): TypstBackend | undefined {
+  const version = typstVersion(known.typst)
+  if (!version) return undefined
+  const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
+  return createTypstBackend({
+    io: files($),
+    compiler: cliCompiler({ run, limiter: typstSlots, lib: `${$.plugin.root}/${LIB}`, version, library: known.library }),
+    cache: typstCache,
+    cacheDir: cacheDir(known.machine),
+    style,
+  })
 }
 
 /**
  * What the view draws a message with, or undefined where texel leaves the
- * message to the engine: no pictures here, or no typst to make them.
+ * message to the engine: no pictures here, or sources asked for.
  */
 async function prepare(
   $: EngineInterface,
   e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
   settings: Settings,
 ): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
-  if (settings.images === 'never') return undefined
-  host ??= retried(learnHost($), () => (host = undefined))
-  const { machine, typst, systemIsDark, library } = await host
-  if (settings.images === 'auto' && !showsImages(machine)) return undefined
-  if ('missing' in typst || !typst.isSupported) {
-    tellAboutTypst($, typst)
-    return undefined
-  }
+  if (showingSource) return undefined
+  const known = await hostOf($)
+  if (!draws(settings, known)) return undefined
 
   theme ??= retried(
-    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, systemIsDark)),
+    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, known.systemIsDark)),
     () => (theme = undefined),
   )
   const current = await theme
   const grid = gridFor(settings.font)
-  const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
-  const renderer = createRenderer({
-    io: files($),
-    compiler: cliCompiler({ run, limiter: typstSlots, lib: `${$.plugin.root}/${LIB}`, version: typst.version, library }),
-    cache,
-    cacheDir: cacheDir(machine),
-    style: {
-      grid,
-      mathColor: settings.mathColor ?? TEXT[current],
-      typstColor: settings.typstColor ?? TEXT[current],
-      inlineScale: settings.inlineScale,
-      // Read on every draw, so an edit to the file shows on the next redraw.
-      macros: await $.fs.read(`${machine.home}/${MACROS}`).catch(() => ''),
-    },
-  })
+  const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
+  const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineScale: settings.inlineScale, macros })
+  const typst = typstBackend($, known, { grid, color: settings.typstColor ?? TEXT[current] })
+  const needed = `typst ${MIN_TYPST.join('.')} or newer`
+  const withoutTypst = { error: 'missing' in known.typst ? `needs ${needed}, which is not installed` : `needs ${needed}; this is typst ${known.typst.version}` }
   const ctx: ViewContext = {
     ui: $.ui.resolve(e),
-    renderer,
+    renderer: route(math, typst, withoutTypst),
     grid,
     fit: settings.fit,
     typstPackages: settings.typstPackages,
@@ -159,6 +167,17 @@ async function draw(
   return drawMessage(prepared.ctx, segments, isPrompt ? PROMPT_BACKGROUND[prepared.theme] : undefined)
 }
 
+// What `/texel` reports: what texel draws with here.
+function status(settings: Settings, known: Host) {
+  const version = typstVersion(known.typst)
+  return [
+    `texel: ${draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)'}`,
+    '  LaTeX math: MathJax, built in',
+    `  typst blocks: ${version ? `typst ${version}` : `off, needs typst ${MIN_TYPST.join('.')} or newer`}`,
+    `  showing: ${showingSource ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
+  ].join('\n')
+}
+
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
 
@@ -171,6 +190,31 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.props.origin.kind !== 'composer') return next(e)
     return (await draw($, e, settings, true)) ?? next(e)
+  })
+
+  // Tell the model it may write math, and typst blocks where typst can draw them.
+  on('prompt.compose', async ($, e, next) => {
+    const composed = await next(e)
+    if (!settings.promptNote || !e.surfaces.includes('terminal')) return composed
+    const known = await hostOf($)
+    if (!draws(settings, known)) return composed
+    const section = { id: PROMPT_SECTION, text: promptNote({ typst: Boolean(typstVersion(known.typst)) }), scope: 'session' as const }
+    return { sections: [...composed.sections, section] }
+  })
+
+  on('session.start', async ($, e, next) => {
+    await $.command.register({ name: 'texel', description: 'What texel draws with; `source` shows sources instead', argumentHint: '[source]', immediate: true })
+    return next(e)
+  })
+
+  on('command.run', { command: 'texel' }, async ($, e) => {
+    if (e.args.trim() === 'source') {
+      showingSource = !showingSource
+      $.ui.status(showingSource ? 'texel: showing sources' : undefined)
+      $.ui.invalidate('ui.render')
+      return { text: showingSource ? 'texel: showing sources; /texel source renders again' : 'texel: rendering again' }
+    }
+    return { text: status(settings, await hostOf($)) }
   })
 
   // A new theme: once it is written, read it again and draw every message in its colours.

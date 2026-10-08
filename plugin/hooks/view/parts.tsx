@@ -6,6 +6,7 @@ import type { Elements, RenderElement } from 'claude-code'
 import type { FitOptions } from '../layout/fit'
 import type { Grid } from '../layout/geometry'
 import type { Renderer } from '../render/renderer'
+import type { Picture } from '../render/result'
 
 export type Table = Elements['terminal']
 
@@ -39,11 +40,11 @@ export async function readyOr<T>(ctx: ViewContext, known: () => Promise<T | unde
  * A picture at its own size. An Image is scaled to whatever box it gets, so
  * its box never shrinks; past the edge (mid-resize, say) it is clipped instead.
  */
-export function image(ui: Table, file: string, columns: number, rows: number, alt: string): RenderElement {
+export function image(ui: Table, picture: Picture, columns: number, rows: number, alt: string): RenderElement {
   const { Box, Image } = ui
   return (
     <Box flexShrink={0}>
-      <Image source={{ file, format: 'png' }} columns={columns} rows={rows} alt={alt} />
+      <Image source={'file' in picture ? { file: picture.file, format: 'png' } : picture} columns={columns} rows={rows} alt={alt} />
     </Box>
   )
 }

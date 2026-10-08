@@ -4,13 +4,13 @@
 
 import type { InlineLine } from '../markdown/parse'
 import type { Answers } from '../render/renderer'
-import { isFailure, reason, type RenderFailure } from '../render/result'
+import { isFailure, reason, type Picture, type RenderFailure } from '../render/result'
 import { fitInline, type FitOptions } from './fit'
 import type { Grid } from './geometry'
 import { cells, wrap, type Line, type Piece } from './wrap'
 
 /** A rendered inline formula: what a row's box piece carries. */
-export type Formula = { file: string; rows: number; tex: string }
+export type Formula = { picture: Picture; rows: number; tex: string }
 
 /** A paragraph line laid out: its marker, its indent, the hang of its later rows, and the rows. */
 export type LaidLine = { prefix: string; indent: number; hang: number; rows: Line<Formula>[] }
@@ -38,7 +38,7 @@ async function formula(answers: Answers<undefined>, tex: string, options: Paragr
   const drawn = await answers.picture({ kind: 'inline', tex, placement })
   if (!drawn) return undefined
   if (isFailure(drawn)) return failed(tex, drawn)
-  const piece: Piece<Formula> = { kind: 'box', columns: drawn.columns, above, below, box: { file: drawn.file, rows: drawn.rows, tex } }
+  const piece: Piece<Formula> = { kind: 'box', columns: drawn.columns, above, below, box: { picture: drawn.picture, rows: drawn.rows, tex } }
   return [piece]
 }
 
