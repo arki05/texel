@@ -1,6 +1,7 @@
 // Runs both backends for real, with the inputs texel produces: MathJax on
-// LaTeX (inline, display, an error) and the typst command line on typst
-// blocks (a figure, prose, an error). `claude plugin test` runs no processes,
+// LaTeX (inline, display, an error), the rasteriser against resvg as a
+// reference, and the typst command line on typst blocks (a figure, prose, an
+// error). `claude plugin test` runs no processes,
 // so this is where typst and texel.typ meet. Exits non-zero on any failure.
 //
 //   npm run smoke
@@ -10,11 +11,15 @@ import { existsSync, mkdtempSync, readFileSync, renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { Resvg } from '@resvg/resvg-js'
+
 import { DEFAULT_FIT, fitInline } from '../plugin/hooks/layout/fit.ts'
 import { FONTS, gridFor, type Ink } from '../plugin/hooks/layout/geometry.ts'
 import { hash } from '../plugin/hooks/render/hash.ts'
 import { Limiter } from '../plugin/hooks/render/limit.ts'
 import { createMathBackend, MathCache } from '../plugin/hooks/render/mathjax/backend.ts'
+import { rasterize } from '../plugin/hooks/render/mathjax/raster.ts'
+import { createTex, type SvgNode } from '../plugin/hooks/render/mathjax/vendor/mathjax-entry.js'
 import { isFailure } from '../plugin/hooks/render/result.ts'
 import { createTypstBackend, TypstCache } from '../plugin/hooks/render/typst/backend.ts'
 import { cliCompiler } from '../plugin/hooks/render/typst/cli.ts'
@@ -41,6 +46,42 @@ for (const tex of ['x', 'x_i^2', '\\frac{a}{b}', '\\R^n', '\\begin{pmatrix} a & 
 }
 check('mathjax display', await math.picture({ kind: 'display', tex: '\\int_0^1 x^2 \\, dx = \\frac{1}{3}' }))
 check('mathjax error is reported', await math.ink('\\frac{a}{'), true)
+
+// The rasteriser against resvg, on the same MathJax SVG at the same size,
+// pixel for pixel from the viewBox's corner. resvg shades by 4x4
+// supersampling and blends overlapping shapes one by one, so small glyphs and
+// overlaps differ a little; a real fault (a shifted edge, a lost curve, a
+// filled hole) differs a lot, over many pixels.
+const serialize = (n: SvgNode): string =>
+  `<${n.tag}${Object.entries(n.attrs).map(([k, v]) => ` ${k}="${v.replace(/"/g, '&quot;')}"`).join('')}>${n.children.map(serialize).join('')}</${n.tag}>`
+
+const tex = createTex('')
+for (const [source, pxPerEm] of [['\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}', 57], ['\\sum_{k=1}^n k^2', 57], ['\\mathbb{R}^n \\otimes \\mathcal{H}', 20]] as const) {
+  const svg = tex.convert(source, true) as SvgNode
+  const ours = rasterize(svg, pxPerEm, [0, 0, 0])
+  // resvg rounds a canvas to whole pixels and scales the drawing to fit:
+  // widen the viewBox to a whole number of pixels instead, so nothing scales.
+  const [minX = 0, minY = 0, w = 0, h = 0] = svg.attrs.viewBox!.split(/\s+/).map(Number)
+  const k = pxPerEm / 1000
+  const [pw, ph] = [Math.ceil(w * k), Math.ceil(h * k)]
+  const viewBox = `${minX} ${minY} ${pw / k} ${ph / k}`
+  const root = { ...svg, attrs: { ...svg.attrs, viewBox, width: String(pw), height: String(ph), color: '#000', style: '' } }
+  const reference = new Resvg(serialize(root), { fitTo: { mode: 'original' } }).render()
+  let [worst, total, differing] = [0, 0, 0]
+  for (let y = 0; y < reference.height; y++)
+    for (let x = 0; x < reference.width; x++) {
+      const mine = ours.rgba[((y + ours.origin.y) * ours.width + x + ours.origin.x) * 4 + 3]!
+      const theirs = reference.pixels[(y * reference.width + x) * 4 + 3]!
+      const d = Math.abs(mine - theirs)
+      worst = Math.max(worst, d)
+      total += d
+      if (d > 64) differing++
+    }
+  const mean = total / (reference.width * reference.height)
+  const agrees = mean < 4 && differing / (reference.width * reference.height) < 0.001
+  if (!agrees) failures++
+  console.log(`${agrees ? 'ok  ' : 'FAIL'} ${`raster vs resvg ${source}`.slice(0, 42).padEnd(42)} mean |Δα| ${mean.toFixed(2)}, worst ${worst}, ${differing} of ${reference.width * reference.height} px off by >64`)
+}
 
 // Typst blocks, through the typst command line.
 const version = /typst (\S+)/.exec(spawnSync('typst', ['--version'], { encoding: 'utf8' }).stdout ?? '')?.[1]

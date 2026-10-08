@@ -29,7 +29,7 @@ export type Settings = {
 }
 
 /** What `terminalFont` names when the person gives the proportions themselves. */
-export const CUSTOM_FONT = 'Custom'
+const CUSTOM_FONT = 'Custom'
 
 function number(options: PluginOptions, name: string, fallback: number, min: number, max: number) {
   const value = Number(options[name] ?? fallback)

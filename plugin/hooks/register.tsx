@@ -171,7 +171,7 @@ async function draw(
 function status(settings: Settings, known: Host) {
   const version = typstVersion(known.typst)
   return [
-    `texel: ${draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)'}`,
+    draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
     '  LaTeX math: MathJax, built in',
     `  typst blocks: ${version ? `typst ${version}` : `off, needs typst ${MIN_TYPST.join('.')} or newer`}`,
     `  showing: ${showingSource ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
@@ -212,7 +212,7 @@ export const register: Register = (on, options) => {
       showingSource = !showingSource
       $.ui.status(showingSource ? 'texel: showing sources' : undefined)
       $.ui.invalidate('ui.render')
-      return { text: showingSource ? 'texel: showing sources; /texel source renders again' : 'texel: rendering again' }
+      return { text: showingSource ? 'showing sources; /texel source renders again' : 'rendering again' }
     }
     return { text: status(settings, await hostOf($)) }
   })

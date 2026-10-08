@@ -5,7 +5,6 @@
 import type { Limiter } from '../limit'
 import type { RenderFailure } from '../result'
 import type { Compiler } from './compiler'
-import type { Program } from './program'
 
 export type Run = (argv: string[], stdin: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>
 

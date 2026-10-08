@@ -1,11 +1,12 @@
 {
   "name": "texel",
   "version": "0.1.0",
-  "description": "Renders math, typst and diagrams inline in the Claude Code transcript",
+  "description": "Typesets LaTeX math and typst blocks inline in Claude Code's terminal",
   "author": {
     "name": "Julius Arkenberg",
     "email": "julius@rkenberg.de"
   },
+  "license": "MIT",
   "userConfig": {
     "promptNote": {
       "type": "boolean",

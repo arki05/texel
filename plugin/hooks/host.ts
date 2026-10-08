@@ -17,7 +17,7 @@ export function cacheDir({ home, os, env }: Machine) {
 }
 
 /** How many files the cache keeps; past it, the oldest go, to be drawn again when needed. */
-export const CACHE_FILES = 4000
+const CACHE_FILES = 4000
 
 /** The command that removes all but the newest `keep` files of the cache folder. */
 export function pruneCommand(cacheDir: string, keep = CACHE_FILES) {

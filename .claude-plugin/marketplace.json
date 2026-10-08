@@ -1,0 +1,15 @@
+{
+  "name": "texel",
+  "description": "texel: typeset math and typst in the Claude Code terminal",
+  "owner": {
+    "name": "Julius Arkenberg",
+    "email": "julius@rkenberg.de"
+  },
+  "plugins": [
+    {
+      "name": "texel",
+      "source": "./plugin",
+      "description": "Typesets LaTeX math and typst blocks inline in Claude Code's terminal"
+    }
+  ]
+}

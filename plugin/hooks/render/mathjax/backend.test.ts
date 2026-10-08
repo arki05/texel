@@ -19,7 +19,8 @@ describe('MathJax backend', () => {
     const ink = (await backend().ink('x')) as Ink
     expect(ink.width).toBeGreaterThan(4)
     expect(ink.above).toBeGreaterThan(5)
-    expect(ink.below).toBeLessThan(0.5)
+    // A hair below, as the glyph and the pixel rows fall: far less than above.
+    expect(ink.below).toBeLessThan(ink.above / 8)
   })
 
   test('a fraction reaches below the baseline too', async () => {

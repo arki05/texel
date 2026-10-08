@@ -214,6 +214,8 @@ test('/texel source shows every message as its source, and again renders', { tim
 test('/texel says what texel draws with', { timeoutMs: 15000 }, async ($, on) => {
   world(on, { machine: { terminal: 'ghostty' } })
   const { text } = await texel($)
+  // Claude Code names the command itself: no `texel:` of our own.
+  expect(text).not.toMatch(/^texel:/)
   expect(text).toContain('LaTeX math: MathJax, built in')
   expect(text).toContain('typst blocks: off, needs typst 0.15 or newer')
 })

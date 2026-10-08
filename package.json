@@ -8,6 +8,7 @@
     "smoke": "tsx scripts/smoke.mts"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
     "esbuild": "0.24.2",
     "mathjax-full": "3.2.2",
     "tsx": "4.19.2"
