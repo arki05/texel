@@ -6,15 +6,15 @@
 
 import { atom, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
 
-import { cacheDir, pruneCommand, showsImages, themeFrom, typstFrom, typstStatus, type Machine, type TypstInstall } from './host'
-import { gridFor } from './layout/geometry'
+import { cacheDir, drawsPictures, pruneCommand, themeFrom, typstFrom, type Machine, type TypstStatus } from './host'
+import { gridFor } from './geometry'
 import { needsRender, parse } from './markdown/parse'
 import { PROMPT_SECTION, promptNote } from './prompt'
 import { hash } from './render/hash'
-import { Limiter } from './render/limit'
+import { Limiter } from './render/typst/limit'
 import { createMathBackend, MathCache } from './render/mathjax/backend'
-import { route, unavailableTypst, type TypstBackend } from './render/renderer'
-import { createTypstBackend, TypstCache, type Io } from './render/typst/backend'
+import type { TypstBackend } from './render/renderer'
+import { createTypstBackend, TypstCache, unavailableTypst, type Io } from './render/typst/backend'
 import { cliCompiler, type Run } from './render/typst/cli'
 import type { TypstStyle } from './render/typst/program'
 import { readSettings, type Settings } from './settings'
@@ -34,7 +34,7 @@ const GUTTER = 4
 type Theme = 'dark' | 'light'
 
 /** What texel learns once per load: the machine, its typst, and texel.typ's fingerprint. */
-type Host = { machine: Machine; typst: TypstInstall; systemIsDark: boolean; library: string }
+type Host = { machine: Machine; typst: TypstStatus; systemIsDark: boolean; library: string }
 
 let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
@@ -99,12 +99,6 @@ function themeOf($: EngineInterface, known: Host): Promise<Theme> {
   return theme
 }
 
-// Whether texel draws pictures here: a terminal that shows them, unless set otherwise.
-function draws(settings: Settings, { machine }: Host) {
-  if (settings.images === 'never') return false
-  return settings.images === 'always' || showsImages(machine)
-}
-
 function files($: EngineInterface): Io {
   return {
     exists: path => $.fs.exists(path),
@@ -115,9 +109,8 @@ function files($: EngineInterface): Io {
 
 // The typst backend, where a typst texel can use is installed.
 function typstBackend($: EngineInterface, known: Host, style: TypstStyle, allowPackages: boolean): TypstBackend {
-  const status = typstStatus(known.typst)
-  if ('unavailable' in status) return unavailableTypst({ error: status.unavailable })
-  const { version } = status
+  if ('unavailable' in known.typst) return unavailableTypst({ error: known.typst.unavailable })
+  const { version } = known.typst
   const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
   return createTypstBackend({
     io: files($),
@@ -140,7 +133,7 @@ async function prepare(
 ): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
   if (await read($, showingSource)) return undefined
   const known = await hostOf($)
-  if (!draws(settings, known)) return undefined
+  if (!drawsPictures(settings.images, known.machine)) return undefined
 
   const current = await themeOf($, known)
   const grid = gridFor(settings.font)
@@ -149,7 +142,8 @@ async function prepare(
   const typst = typstBackend($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings.typstPackages)
   const ctx: ViewContext = {
     ui: $.ui.resolve(e),
-    renderer: route(math, typst),
+    math,
+    typst,
     grid,
     fit: settings.fit,
     columns: (e.viewport?.columns ?? 100) - GUTTER,
@@ -173,9 +167,9 @@ async function draw(
 
 // What `/texel` reports: what texel draws with here.
 function status(settings: Settings, known: Host, sources: boolean) {
-  const typst = typstStatus(known.typst)
+  const { typst } = known
   return [
-    draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
+    drawsPictures(settings.images, known.machine) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
     '  LaTeX math: MathJax, built in',
     `  typst blocks: ${'version' in typst ? `typst ${typst.version}${settings.typstPackages ? '' : ', packages off'}` : `off, ${typst.unavailable}`}`,
     `  showing: ${sources ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
@@ -201,8 +195,8 @@ export const register: Register = (on, options) => {
     const composed = await next(e)
     if (!settings.promptNote || !e.surfaces.includes('terminal')) return composed
     const known = await hostOf($)
-    if (!draws(settings, known)) return composed
-    const typst = 'version' in typstStatus(known.typst)
+    if (!drawsPictures(settings.images, known.machine)) return composed
+    const typst = 'version' in known.typst
     const note = promptNote({ typst, packages: settings.typstPackages, theme: await themeOf($, known) })
     const section = { id: PROMPT_SECTION, text: note, scope: 'session' as const }
     return { sections: [...composed.sections, section] }

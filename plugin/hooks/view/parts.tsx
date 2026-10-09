@@ -4,15 +4,16 @@
 import type { Elements, RenderElement } from 'claude-code'
 
 import type { FitOptions } from '../layout/fit'
-import type { Grid } from '../layout/geometry'
-import type { Renderer } from '../render/renderer'
+import type { Grid } from '../geometry'
+import type { MathBackend, TypstBackend } from '../render/renderer'
 import type { Picture } from '../render/result'
 
 export type Table = Elements['terminal']
 
 export type ViewContext = {
   ui: Table
-  renderer: Renderer
+  math: MathBackend
+  typst: TypstBackend
   grid: Grid
   fit: FitOptions
   /** The columns a message's content may take. */

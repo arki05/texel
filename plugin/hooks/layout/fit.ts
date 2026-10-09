@@ -3,7 +3,7 @@
 // so the formula keeps its size and the rows around the text make room.
 // Pure: points and cells in, a placement out.
 
-import type { Grid, Ink, Placement } from './geometry'
+import type { Grid, Ink, Placement } from '../geometry'
 
 /** The person's settings (plugin.json `userConfig`); scales of natural size, shifts in rows. */
 export type FitOptions = {

@@ -6,7 +6,7 @@ import type { RenderElement } from 'claude-code'
 import { formulaSource, layoutParagraph, type Formula, type LaidLine } from '../layout/paragraph'
 import type { Line } from '../layout/wrap'
 import type { InlineLine } from '../markdown/parse'
-import { image, readyOr, type ViewContext } from './parts'
+import { image, type ViewContext } from './parts'
 
 // One wrapped row. Text sits on the row's text row, `row.above` rows down; a
 // formula's own rows above its text row line up with it.
@@ -55,15 +55,8 @@ function drawLine(ctx: ViewContext, line: LaidLine): RenderElement {
   )
 }
 
-/** A paragraph with inline math, or its `source` until every formula in it is ready. */
-export async function drawParagraph(ctx: ViewContext, lines: InlineLine[], source: string): Promise<RenderElement> {
-  const { Box, Markdown } = ctx.ui
-  const options = { grid: ctx.grid, fit: ctx.fit, columns: ctx.columns }
-  const laid = await readyOr(
-    ctx,
-    () => layoutParagraph(ctx.renderer.known, lines, options),
-    () => layoutParagraph(ctx.renderer.fresh, lines, options),
-  )
-  if (!laid) return <Markdown text={source} />
-  return <Box flexDirection="column">{laid.map(line => drawLine(ctx, line))}</Box>
+/** A paragraph with inline math. */
+export async function drawParagraph(ctx: ViewContext, lines: InlineLine[]): Promise<RenderElement> {
+  const laid = await layoutParagraph(ctx.math, lines, { grid: ctx.grid, fit: ctx.fit, columns: ctx.columns })
+  return <ctx.ui.Box flexDirection="column">{laid.map(line => drawLine(ctx, line))}</ctx.ui.Box>
 }

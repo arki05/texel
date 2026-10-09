@@ -2,7 +2,7 @@
 // as a fixed main file and the inputs it reads. Everything that varies is an
 // input; only the block's own markup is source. Pure: jobs in, programs out.
 
-import type { Grid } from '../../layout/geometry'
+import type { Grid } from '../../geometry'
 import type { TypstJob } from '../renderer'
 
 /** How typst blocks are set: on which grid, in what colour (six hex digits). */

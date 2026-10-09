@@ -1,23 +1,17 @@
-// A picture on its own: display math or a typst block, centred, at its own
-// size. Exported for anything that shows a single rendered job.
+// A picture on its own: display math or a typst block, centred, at its own size.
 
 import type { RenderElement } from 'claude-code'
 
-import { isFailure, verdict } from '../render/result'
-import type { DrawJob } from '../render/renderer'
-import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
+import { isFailure, verdict, type Rendered, type RenderFailure } from '../render/result'
+import { image, sourceWithNote, type ViewContext } from './parts'
 
 /**
- * `job`'s picture, or its `source` until the picture exists. A block keeps its
- * own size: one wider than the transcript shows its source until there is room.
+ * A block's picture, or its `source` while there is none yet. A block keeps
+ * its own size: one wider than the transcript shows its source until there
+ * is room.
  */
-export async function drawBlock(ctx: ViewContext, job: DrawJob, source: string, alt: string): Promise<RenderElement> {
+export function drawBlock(ctx: ViewContext, drawn: Rendered | RenderFailure | undefined, source: string, alt: string): RenderElement {
   const { Box, Markdown } = ctx.ui
-  const drawn = await readyOr(
-    ctx,
-    () => ctx.renderer.known.picture(job),
-    () => ctx.renderer.fresh.picture(job),
-  )
   if (!drawn) return <Markdown text={source} />
   if (isFailure(drawn)) return sourceWithNote(ctx.ui, source, verdict(drawn))
   if (drawn.columns > ctx.columns) {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { Limiter } from '../limit'
 import { cliCompiler, type Run } from './cli'
+import { Limiter } from './limit'
 import type { Program } from './program'
 
 const block: Program = { source: '#import "/texel.typ": *\n#typst-block[\nhi\n]\n', inputs: { foreground: 'e6e6e6', 'max-columns': '80' } }

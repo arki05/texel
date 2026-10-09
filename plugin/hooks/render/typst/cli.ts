@@ -2,10 +2,10 @@
 // a few at a time. Each program's source goes in on stdin, its inputs as
 // `--input` flags, with texel.typ's folder as the root.
 
-import { PX_PER_PT } from '../../layout/geometry'
-import type { Limiter } from '../limit'
+import { PX_PER_PT } from '../../geometry'
 import type { RenderFailure } from '../result'
 import type { Compiler } from './compiler'
+import type { Limiter } from './limit'
 
 export type Run = (argv: string[], stdin: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>
 

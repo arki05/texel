@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { Ink } from '../../layout/geometry'
+import type { Ink } from '../../geometry'
 import { decodePng } from '../png'
 import type { Rendered, RenderFailure } from '../result'
 import { createMathBackend, MathCache, type MathStyle } from './backend'

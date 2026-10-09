@@ -7,18 +7,21 @@ import type { RenderElement } from 'claude-code'
 import type { Segment } from '../markdown/parse'
 import { drawBlock } from './block'
 import { drawParagraph } from './paragraph'
-import type { ViewContext } from './parts'
+import { readyOr, type ViewContext } from './parts'
 
-function drawSegment(ctx: ViewContext, segment: Segment): Promise<RenderElement> | RenderElement {
+async function drawSegment(ctx: ViewContext, segment: Segment): Promise<RenderElement> {
   switch (segment.kind) {
     case 'markdown':
       return <ctx.ui.Markdown text={segment.text} />
     case 'display':
-      return drawBlock(ctx, { kind: 'display', tex: segment.tex }, segment.source, segment.tex)
-    case 'typst':
-      return drawBlock(ctx, { kind: 'typst', typst: segment.code, maxColumns: ctx.columns }, segment.source, 'typst block')
+      return drawBlock(ctx, await ctx.math.picture({ kind: 'display', tex: segment.tex }), segment.source, segment.tex)
+    case 'typst': {
+      const job = { kind: 'typst', typst: segment.code, maxColumns: ctx.columns } as const
+      const drawn = await readyOr(ctx, () => ctx.typst.known(job), () => ctx.typst.fresh(job))
+      return drawBlock(ctx, drawn, segment.source, 'typst block')
+    }
     case 'paragraph':
-      return drawParagraph(ctx, segment.lines, segment.source)
+      return drawParagraph(ctx, segment.lines)
   }
 }
 

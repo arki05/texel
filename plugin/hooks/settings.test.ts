@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { DEFAULT_FIT } from './layout/fit'
-import { FONTS } from './layout/geometry'
+import { FONTS } from './geometry'
 import { readSettings } from './settings'
 
 describe('readSettings', () => {

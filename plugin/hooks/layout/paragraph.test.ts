@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { Answers } from '../render/renderer'
+import type { MathBackend } from '../render/renderer'
 import { DEFAULT_FIT } from './fit'
-import type { Ink } from './geometry'
+import type { Ink } from '../geometry'
 import { layoutParagraph } from './paragraph'
 
 const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }
 
-// Answers that know each formula's ink, and draw any placement as asked.
-const answers = (inks: Record<string, Ink>): Answers<undefined> => ({
+// MathJax as far as layout sees it: each formula's ink, and any placement drawn as asked.
+const answers = (inks: Record<string, Ink>): MathBackend => ({
   ink: async tex => inks[tex] ?? { error: 'unknown' },
   picture: async job => ({ picture: { png: '' }, columns: job.kind === 'inline' ? job.placement.columns : 1, rows: 1 }),
 })
@@ -32,7 +32,7 @@ describe('layoutParagraph', () => {
 
   test("a formula's ink keeps to the side where punctuation touches it, centred between spaces", async () => {
     const sides: Record<string, unknown> = {}
-    const recording: Answers<undefined> = {
+    const recording: MathBackend = {
       ink: async () => ({ width: 8, above: 7.9, below: 0.2 }),
       picture: async job => {
         if (job.kind === 'inline') sides[`${job.tex}`] = job.placement.side

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { Ink } from './geometry'
+import type { Ink } from '../geometry'
 import { fitInline } from './fit'
 
 // Ghostty's default cell; the baseline 13.14pt down a 17pt row.

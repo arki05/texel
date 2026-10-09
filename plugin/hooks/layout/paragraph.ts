@@ -3,10 +3,10 @@
 // every row grown to hold its tallest formula. The view only draws the result.
 
 import type { Atom, InlineLine } from '../markdown/parse'
-import type { Answers } from '../render/renderer'
+import type { MathBackend } from '../render/renderer'
 import { isFailure, reason, type Picture, type RenderFailure } from '../render/result'
 import { fitInline, MIN_READABLE, type FitOptions } from './fit'
-import type { Grid, Placement } from './geometry'
+import type { Grid, Placement } from '../geometry'
 import { cells, wrap, type Line, type Piece } from './wrap'
 
 /** A rendered inline formula: what a row's box piece carries. */
@@ -39,45 +39,31 @@ function sideOf(before: Atom | undefined, after: Atom | undefined): Placement['s
   return left === right ? undefined : left ? 'left' : 'right'
 }
 
-// One formula measured, fitted into a line `width` cells wide and drawn as
-// fitted; undefined when `answers` has no answer yet.
-async function formula(answers: Answers<undefined>, tex: string, options: ParagraphOptions, width: number, side: Placement['side']) {
-  const ink = await answers.ink(tex)
-  if (!ink) return undefined
+// One formula measured, fitted into a line `width` cells wide and drawn as fitted.
+async function formula(math: MathBackend, tex: string, options: ParagraphOptions, width: number, side: Placement['side']): Promise<Piece<Formula>[]> {
+  const ink = await math.ink(tex)
   if (isFailure(ink)) return failed(tex, ink)
   const { above, below, placement } = fitInline(ink, options.grid, width, options.fit)
   // A smaller least scale the person chose is theirs to keep.
   if (placement.scale < Math.min(MIN_READABLE, options.fit.minScale)) return failed(tex, { error: 'too large for the line' })
-  const drawn = await answers.picture({ kind: 'inline', tex, placement: side ? { ...placement, side } : placement })
-  if (!drawn) return undefined
+  const drawn = await math.picture({ kind: 'inline', tex, placement: side ? { ...placement, side } : placement })
   if (isFailure(drawn)) return failed(tex, drawn)
-  const piece: Piece<Formula> = { kind: 'box', columns: drawn.columns, above, below, box: { picture: drawn.picture, rows: drawn.rows, tex } }
-  return [piece]
+  return [{ kind: 'box', columns: drawn.columns, above, below, box: { picture: drawn.picture, rows: drawn.rows, tex } }]
 }
 
-/**
- * `lines` laid out with what `answers` gives: from what is already known, a
- * layout only when every formula is ready (undefined otherwise); from fresh
- * answers, always.
- */
-export async function layoutParagraph(
-  answers: Answers<undefined>,
-  lines: InlineLine[],
-  options: ParagraphOptions,
-): Promise<LaidLine[] | undefined> {
-  const laid = await Promise.all(
+/** `lines` laid out, every formula in them drawn by `math`. */
+export function layoutParagraph(math: MathBackend, lines: InlineLine[], options: ParagraphOptions): Promise<LaidLine[]> {
+  return Promise.all(
     lines.map(async line => {
       // A list item's later rows hang under its text, not its marker.
       const hang = cells(line.prefix)
       const width = Math.max(8, options.columns - line.indent - hang)
       const pieces = await Promise.all(
         line.atoms.map((atom, i) =>
-          atom.kind === 'math' ? formula(answers, atom.tex, options, width, sideOf(line.atoms[i - 1], line.atoms[i + 1])) : [atom],
+          atom.kind === 'math' ? formula(math, atom.tex, options, width, sideOf(line.atoms[i - 1], line.atoms[i + 1])) : [atom],
         ),
       )
-      if (pieces.some(piece => piece === undefined)) return undefined
-      return { prefix: line.prefix, indent: line.indent, hang, rows: wrap((pieces as Piece<Formula>[][]).flat(), width) }
+      return { prefix: line.prefix, indent: line.indent, hang, rows: wrap(pieces.flat(), width) }
     }),
   )
-  return laid.some(line => line === undefined) ? undefined : (laid as LaidLine[])
 }

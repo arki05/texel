@@ -1,6 +1,6 @@
 // What a render comes to: a picture of whole cells, or why there is none.
 
-import { MAX_CELLS } from '../layout/geometry'
+import { MAX_CELLS } from '../geometry'
 
 /** A picture: a PNG file typst wrote, or a PNG held in memory (base64). */
 export type Picture = { file: string } | { png: string }

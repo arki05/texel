@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { cacheDir, showsImages, themeFrom, typstFrom, type Machine } from './host'
+import { cacheDir, drawsPictures, showsImages, themeFrom, typstFrom, type Machine } from './host'
 
 const mac: Machine = { home: '/Users/a', os: 'Darwin', env: {} }
 const linux: Machine = { home: '/home/a', os: 'Linux', env: {} }
@@ -19,10 +19,18 @@ describe('host', () => {
     expect(showsImages({ ...mac, env: { TERM_PROGRAM: 'ghostty', TMUX: '/tmp/tmux-1/default' } })).toBe(false)
   })
 
+  test('pictures: always, never, or where the terminal shows them', () => {
+    const iterm = { ...mac, env: { TERM_PROGRAM: 'iTerm.app' } }
+    const ghostty = { ...mac, env: { TERM_PROGRAM: 'ghostty' } }
+    expect([drawsPictures('auto', ghostty), drawsPictures('auto', iterm)]).toEqual([true, false])
+    expect([drawsPictures('always', iterm), drawsPictures('never', ghostty)]).toEqual([true, false])
+  })
+
   test('typst: found and recent, found and old, or missing', () => {
-    expect(typstFrom('typst 0.15.1 (unknown commit)')).toEqual({ version: '0.15.1', isSupported: true })
-    expect(typstFrom('typst 0.14.2')).toEqual({ version: '0.14.2', isSupported: false })
-    expect(typstFrom(undefined)).toEqual({ missing: true })
+    expect(typstFrom('typst 0.15.1 (unknown commit)')).toEqual({ version: '0.15.1' })
+    expect(typstFrom('typst 1.0.0')).toEqual({ version: '1.0.0' })
+    expect(typstFrom('typst 0.14.2')).toEqual({ unavailable: 'needs typst 0.15 or newer; this is typst 0.14.2' })
+    expect(typstFrom(undefined)).toEqual({ unavailable: 'needs typst 0.15 or newer, which is not installed' })
   })
 
   test("Claude Code's theme decides; auto follows the system", () => {

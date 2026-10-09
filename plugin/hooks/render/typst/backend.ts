@@ -3,7 +3,7 @@
 // content hash and in a Memo, and answers from those whenever it can.
 
 import { hash } from '../hash'
-import { Memo } from '../memo'
+import { Memo } from './memo'
 import { pngSize } from '../png'
 import type { TypstBackend, TypstJob } from '../renderer'
 import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
@@ -41,6 +41,11 @@ export type TypstOptions = {
 }
 
 const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
+
+/** The typst backend where typst cannot run: every block fails with `failure`. */
+export function unavailableTypst(failure: RenderFailure): TypstBackend {
+  return { known: async () => failure, fresh: async () => failure }
+}
 
 export function createTypstBackend({ io, compiler, cache, style, cacheDir, allowPackages }: TypstOptions): TypstBackend {
   const refused = (job: TypstJob) => !allowPackages && importsPackage(job.typst)

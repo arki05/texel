@@ -35,28 +35,26 @@ export function showsImages({ env }: Machine) {
   return env.TERM === 'xterm-kitty' || Boolean(env.KITTY_WINDOW_ID) || env.TERM_PROGRAM === 'ghostty'
 }
 
-/** The oldest typst texel works with: texel.typ and the command line it runs are checked against 0.15. */
-export const MIN_TYPST = [0, 15] as const
+/** Whether texel draws pictures: as the `images` setting says, `auto` where the terminal shows them. */
+export function drawsPictures(images: 'auto' | 'always' | 'never', machine: Machine) {
+  return images === 'always' || (images === 'auto' && showsImages(machine))
+}
 
-export type TypstInstall = { version: string; isSupported: boolean } | { missing: true }
+/** The oldest typst texel works with: texel.typ and the command line it runs are checked against 0.15. */
+const MIN_TYPST = [0, 15] as const
 
 /** Whether typst blocks can be drawn here: with which typst, or why not, in words. */
 export type TypstStatus = { version: string } | { unavailable: string }
 
-export function typstStatus(typst: TypstInstall): TypstStatus {
+/** From what `typst --version` printed (`typst 0.15.1 (...)`), or undefined when it would not run. */
+export function typstFrom(stdout: string | undefined): TypstStatus {
   const needed = `typst ${MIN_TYPST.join('.')} or newer`
-  if ('missing' in typst) return { unavailable: `needs ${needed}, which is not installed` }
-  if (!typst.isSupported) return { unavailable: `needs ${needed}; this is typst ${typst.version}` }
-  return { version: typst.version }
-}
-
-/** What `typst --version` printed (`typst 0.15.1 (...)`), or undefined when it would not run. */
-export function typstFrom(stdout: string | undefined): TypstInstall {
   const match = stdout && /typst (\d+)\.(\d+)\.(\d+)/.exec(stdout)
-  if (!match) return { missing: true }
+  if (!match) return { unavailable: `needs ${needed}, which is not installed` }
   const [major, minor] = [Number(match[1]), Number(match[2])]
-  const isSupported = major > MIN_TYPST[0] || (major === MIN_TYPST[0] && minor >= MIN_TYPST[1])
-  return { version: `${match[1]}.${match[2]}.${match[3]}`, isSupported }
+  const version = `${match[1]}.${match[2]}.${match[3]}`
+  if (major < MIN_TYPST[0] || (major === MIN_TYPST[0] && minor < MIN_TYPST[1])) return { unavailable: `needs ${needed}; this is typst ${version}` }
+  return { version }
 }
 
 /** Claude Code's `theme` setting (`dark`, `light-ansi`, `auto`, ...); `auto` follows the system. */

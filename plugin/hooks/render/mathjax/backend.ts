@@ -3,7 +3,7 @@
 // terminal's grid. Nothing to install and nothing to wait for, so it answers
 // every draw directly.
 
-import { blockCells, PX_PER_PT, type Grid, type Ink } from '../../layout/geometry'
+import { blockCells, PX_PER_PT, type Grid, type Ink } from '../../geometry'
 import { toBase64 } from '../base64'
 import { encodePng } from '../png'
 import type { LatexJob, MathBackend } from '../renderer'

@@ -1,7 +1,7 @@
 // Remembers what each keyed run of work settled to, for as long as the module
 // is loaded, so a redraw asks typst nothing it already asked.
 
-import { isFailure, type RenderFailure } from './result'
+import { isFailure, type RenderFailure } from '../result'
 
 /** How many times work that failed transiently is tried before its failure is kept. */
 const ATTEMPTS = 2
