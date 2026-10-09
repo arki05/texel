@@ -143,8 +143,7 @@ itself.
 - **Hooks:** `ui.render` redraws replies and your prompts; `prompt.compose`
   adds one short section to the system prompt (the note above, which
   `promptNote` turns off); `session.start` and `command.run` provide
-  `/texel`; `config.set` on `theme` passes your change on untouched and then
-  redraws in the new theme's colours.
+  `/texel`. It reads Claude Code's theme as it draws, and hooks no setting.
 - **Bundled code:** MathJax and fflate, minified, in the plugin's vendor
   folders; `npm run build:vendor` rebuilds them byte for byte from the
   sources named in `scripts/`. Their reflective code (prototypes,

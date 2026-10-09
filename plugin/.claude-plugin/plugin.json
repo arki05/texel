@@ -1,6 +1,6 @@
 {
   "name": "texel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Typesets LaTeX math and typst blocks inline in Claude Code's terminal",
   "author": {
     "name": "Julius Arkenberg",

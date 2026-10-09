@@ -14,6 +14,7 @@ import ts from 'typescript'
 
 const root = new URL('..', import.meta.url).pathname
 const MAX_FILE = 1024 * 1024
+const INVISIBLE = /[\u00AD\u200B-\u200F\u2028-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
 type Vendor = {
   /** The npm package, and where it is made. */
@@ -62,7 +63,11 @@ async function vendor({ pkg, url, holder, license, entry, out, uses, more = [] }
 
   // What the hooks module may import is checked here, not discovered at load.
   for (const file of readdirSync(dir)) {
-    const code = readFileSync(join(dir, file), 'utf8')
+    // Characters that draw nothing (zero-width, direction marks) as \u
+    // escapes, so a reader sees them; they stand only in strings and
+    // regular expressions, where an escape means the same.
+    const code = readFileSync(join(dir, file), 'utf8').replace(INVISIBLE, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
+    writeFileSync(join(dir, file), code)
     if (statSync(join(dir, file)).size >= MAX_FILE) throw new Error(`${file} is over 1 MiB`)
     if (/\bimport\s*\(/.test(code)) throw new Error(`${file} imports dynamically`)
     if (/\brequire\s*\(/.test(code)) throw new Error(`${file} requires`)

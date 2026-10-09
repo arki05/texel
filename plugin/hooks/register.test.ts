@@ -315,13 +315,11 @@ test('where texel does not draw, the model is told nothing', { timeoutMs: 15000 
   expect((await composed($)).sections.find(section => section.id === 'texel:math')).toBeUndefined()
 })
 
-test('a new theme is read again, and math following the text takes its colour', { timeoutMs: 15000, options: { mathColor: '' } }, async ($, on) => {
+test('a new theme is read on the next draw, and math following the text takes its colour', { timeoutMs: 15000, options: { mathColor: '' } }, async ($, on) => {
   const theme = { value: 'dark' }
   const { show } = world(on, { theme })
-  on('config.set', (_$, e) => ({ value: (e as { value: string }).value }) as never)
   expect(inkColour(images(await (await show($, 'so \\(x\\)')).drawn())[0]!)).toBe('e6e6e6')
   theme.value = 'light'
-  await $.config.set({ key: 'theme', value: 'light' } as never)
   expect(inkColour(images(await (await show($, 'so \\(x\\)')).drawn())[0]!)).toBe('1f1f1f')
 })
 

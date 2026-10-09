@@ -31,8 +31,6 @@ const MACROS = '.config/texel/macros.tex'
 type Host = { machine: Machine; typst: TypstStatus; systemIsDark: boolean; libraryHash: string }
 
 let host: Promise<Host> | undefined
-// Claude Code's theme, read again after the person changes it.
-let theme: Promise<Theme> | undefined
 // `/texel source`: every message shown as its source, for reading or copying.
 // Session state, so a reload of texel (a change of settings) keeps it, and
 // every message that read it is drawn again when it changes.
@@ -88,13 +86,12 @@ function hostOf($: EngineInterface) {
   return host
 }
 
-// Claude Code's theme, light or dark, read once and again after it changes.
-function themeOf($: EngineInterface, known: Host): Promise<Theme> {
-  theme ??= retried(
-    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, known.systemIsDark)),
-    () => (theme = undefined),
-  )
-  return theme
+// Claude Code's theme, light or dark, as it is now: read on every draw, so
+// a change of theme is in the next one, and texel needs no hook on the
+// setting itself.
+async function themeOf($: EngineInterface, known: Host): Promise<Theme> {
+  const rows = await $.config.list()
+  return themeFrom(rows.find(row => row.key === 'theme')?.value, known.systemIsDark)
 }
 
 function files($: EngineInterface): Io {
@@ -200,15 +197,4 @@ export const register: Register = (on, options) => {
     }
     return { text: status(settings, await hostOf($), await read($, showingSource)) }
   })
-
-  // The change itself is passed on untouched; once it is written, texel
-  // reads the theme again and draws every message in its colours.
-  on('config.set', { key: 'theme' }, ($, e, next) => {
-    const written = next(e)
-    void written.finally(() => {
-      theme = undefined
-      $.ui.invalidate('ui.render')
-    })
-    return written
-  }).catch((_, e, next) => next(e))
 }
