@@ -18,6 +18,12 @@ export type Ink = { width: number; above: number; below: number }
 /** Where an inline formula is drawn: its box in cells, its scale, and its ink's offset down the box (pt). */
 export type Placement = { columns: number; rows: number; scale: number; dy: number }
 
+/**
+ * Pixels per point a picture is made at, full size: 216 ppi, sharp at the
+ * size terminals draw cells. The terminal scales each picture to its cells.
+ */
+export const PX_PER_PT = 3
+
 /** The most cells a picture covers, each way: an Image's limit. */
 export const MAX_CELLS = 255
 

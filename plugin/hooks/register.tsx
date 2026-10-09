@@ -6,14 +6,14 @@
 
 import { atom, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
 
-import { cacheDir, MIN_TYPST, pruneCommand, showsImages, themeFrom, typstFrom, type Machine, type TypstInstall } from './host'
+import { cacheDir, pruneCommand, showsImages, themeFrom, typstFrom, typstStatus, type Machine, type TypstInstall } from './host'
 import { gridFor } from './layout/geometry'
 import { needsRender, parse } from './markdown/parse'
 import { PROMPT_SECTION, promptNote } from './prompt'
 import { hash } from './render/hash'
 import { Limiter } from './render/limit'
 import { createMathBackend, MathCache } from './render/mathjax/backend'
-import { route, type TypstBackend } from './render/renderer'
+import { route, unavailableTypst, type TypstBackend } from './render/renderer'
 import { createTypstBackend, TypstCache, type Io } from './render/typst/backend'
 import { cliCompiler, type Run } from './render/typst/cli'
 import type { TypstStyle } from './render/typst/program'
@@ -96,8 +96,6 @@ function draws(settings: Settings, { machine }: Host) {
   return settings.images === 'always' || showsImages(machine)
 }
 
-const typstVersion = (typst: TypstInstall) => ('version' in typst && typst.isSupported ? typst.version : undefined)
-
 function files($: EngineInterface): Io {
   return {
     exists: path => $.fs.exists(path),
@@ -107,9 +105,10 @@ function files($: EngineInterface): Io {
 }
 
 // The typst backend, where a typst texel can use is installed.
-function typstBackend($: EngineInterface, known: Host, style: TypstStyle): TypstBackend | undefined {
-  const version = typstVersion(known.typst)
-  if (!version) return undefined
+function typstBackend($: EngineInterface, known: Host, style: TypstStyle, allowPackages: boolean): TypstBackend {
+  const status = typstStatus(known.typst)
+  if ('unavailable' in status) return unavailableTypst({ error: status.unavailable })
+  const { version } = status
   const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
   return createTypstBackend({
     io: files($),
@@ -117,6 +116,7 @@ function typstBackend($: EngineInterface, known: Host, style: TypstStyle): Typst
     cache: typstCache,
     cacheDir: cacheDir(known.machine),
     style,
+    allowPackages,
   })
 }
 
@@ -141,15 +141,12 @@ async function prepare(
   const grid = gridFor(settings.font)
   const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
   const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineScale: settings.inlineScale, macros })
-  const typst = typstBackend($, known, { grid, color: settings.typstColor ?? TEXT[current] })
-  const needed = `typst ${MIN_TYPST.join('.')} or newer`
-  const withoutTypst = { error: 'missing' in known.typst ? `needs ${needed}, which is not installed` : `needs ${needed}; this is typst ${known.typst.version}` }
+  const typst = typstBackend($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings.typstPackages)
   const ctx: ViewContext = {
     ui: $.ui.resolve(e),
-    renderer: route(math, typst, withoutTypst),
+    renderer: route(math, typst),
     grid,
     fit: settings.fit,
-    typstPackages: settings.typstPackages,
     columns: (e.viewport?.columns ?? 100) - GUTTER,
     redraw: () => $.ui.invalidate('ui.render'),
   }
@@ -171,11 +168,11 @@ async function draw(
 
 // What `/texel` reports: what texel draws with here.
 function status(settings: Settings, known: Host, sources: boolean) {
-  const version = typstVersion(known.typst)
+  const typst = typstStatus(known.typst)
   return [
     draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
     '  LaTeX math: MathJax, built in',
-    `  typst blocks: ${version ? `typst ${version}` : `off, needs typst ${MIN_TYPST.join('.')} or newer`}`,
+    `  typst blocks: ${'version' in typst ? `typst ${typst.version}${settings.typstPackages ? '' : ', packages off'}` : `off, ${typst.unavailable}`}`,
     `  showing: ${sources ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
   ].join('\n')
 }
@@ -200,7 +197,8 @@ export const register: Register = (on, options) => {
     if (!settings.promptNote || !e.surfaces.includes('terminal')) return composed
     const known = await hostOf($)
     if (!draws(settings, known)) return composed
-    const section = { id: PROMPT_SECTION, text: promptNote({ typst: Boolean(typstVersion(known.typst)) }), scope: 'session' as const }
+    const typst = 'version' in typstStatus(known.typst)
+    const section = { id: PROMPT_SECTION, text: promptNote({ typst, packages: settings.typstPackages }), scope: 'session' as const }
     return { sections: [...composed.sections, section] }
   })
 

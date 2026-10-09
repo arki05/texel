@@ -2,6 +2,7 @@
 // a few at a time. Each program's source goes in on stdin, its inputs as
 // `--input` flags, with texel.typ's folder as the root.
 
+import { PX_PER_PT } from '../../layout/geometry'
 import type { Limiter } from '../limit'
 import type { RenderFailure } from '../result'
 import type { Compiler } from './compiler'
@@ -19,7 +20,7 @@ export type CliOptions = {
   library: string
 }
 
-const PPI = 216
+const PPI = PX_PER_PT * 72
 
 // Typst's own error: its first lines, from the first `error:` on, past the
 // progress typst writes to stderr too (`downloading @preview/…`).

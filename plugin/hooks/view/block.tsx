@@ -3,9 +3,8 @@
 
 import type { RenderElement } from 'claude-code'
 
-import { isFailure, reason } from '../render/result'
+import { isFailure, verdict } from '../render/result'
 import type { DrawJob } from '../render/renderer'
-import { importsPackage } from '../render/typst/program'
 import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
 
 /**
@@ -14,16 +13,13 @@ import { image, readyOr, sourceWithNote, type ViewContext } from './parts'
  */
 export async function drawBlock(ctx: ViewContext, job: DrawJob, source: string, alt: string): Promise<RenderElement> {
   const { Box, Markdown } = ctx.ui
-  if (job.kind === 'typst' && !ctx.typstPackages && importsPackage(job.typst)) {
-    return sourceWithNote(ctx.ui, source, 'not rendered: it imports a package, and typstPackages is off in /config')
-  }
   const drawn = await readyOr(
     ctx,
     () => ctx.renderer.known.picture(job),
     () => ctx.renderer.fresh.picture(job),
   )
   if (!drawn) return <Markdown text={source} />
-  if (isFailure(drawn)) return sourceWithNote(ctx.ui, source, `render failed: ${reason(drawn)}`)
+  if (isFailure(drawn)) return sourceWithNote(ctx.ui, source, verdict(drawn))
   if (drawn.columns > ctx.columns) {
     return sourceWithNote(ctx.ui, source, `wider than the transcript (${drawn.columns} > ${ctx.columns} columns)`)
   }

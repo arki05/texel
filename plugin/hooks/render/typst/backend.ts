@@ -8,7 +8,7 @@ import { pngSize } from '../png'
 import type { TypstBackend, TypstJob } from '../renderer'
 import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
 import type { Compiler } from './compiler'
-import { program, widthFree, type Program, type TypstStyle } from './program'
+import { importsPackage, program, widthFree, type Program, type TypstStyle } from './program'
 
 /** The files the backend reads and writes; the hooks module builds it from `$`. */
 export type Io = {
@@ -36,9 +36,14 @@ export type TypstOptions = {
   style: TypstStyle
   /** Where pictures are kept. */
   cacheDir: string
+  /** Whether a block may import packages, which typst downloads (the `typstPackages` setting). */
+  allowPackages: boolean
 }
 
-export function createTypstBackend({ io, compiler, cache, style, cacheDir }: TypstOptions): TypstBackend {
+const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
+
+export function createTypstBackend({ io, compiler, cache, style, cacheDir, allowPackages }: TypstOptions): TypstBackend {
+  const refused = (job: TypstJob) => !allowPackages && importsPackage(job.typst)
   // A run is known by what makes its output: the compiler, its main file, its inputs.
   const keyOf = ({ source, inputs }: Program) => hash(JSON.stringify([compiler.id, source, inputs]))
 
@@ -70,6 +75,7 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir }: Typ
 
   return {
     async known(job) {
+      if (refused(job)) return PACKAGES_OFF
       const drawing = program(job, style)
       const natural = cache.natural.get(await keyOf(widthFree(drawing)))
       if (natural && natural.columns <= job.maxColumns) return natural
@@ -85,6 +91,7 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir }: Typ
     },
 
     async fresh(job) {
+      if (refused(job)) return PACKAGES_OFF
       const drawing = program(job, style)
       const key = await keyOf(drawing)
       const result = await cache.runs.once<Rendered>(key, async () => {

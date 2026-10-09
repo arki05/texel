@@ -21,7 +21,7 @@ type Machine = { terminal?: string; tmux?: string; typst?: string }
 // Ghostty on a Mac with typst 0.15: a machine texel draws on, typst blocks included.
 const GHOSTTY: Machine = { terminal: 'ghostty', typst: 'typst 0.15.1 (test)' }
 
-type World = { macros?: string; png?: [number, number]; run?: Run; machine?: Machine }
+type World = { macros?: string; png?: [number, number]; run?: Run; machine?: Machine; theme?: { value: string } }
 
 /**
  * The host beneath the plugin: a machine (by default one texel draws on), an
@@ -30,7 +30,7 @@ type World = { macros?: string; png?: [number, number]; run?: Run; machine?: Mac
  * which mounts a message and lets work started in the background finish
  * before the test looks.
  */
-function world(on: On, { macros, png = [47, 51], run, machine = GHOSTTY }: World = {}) {
+function world(on: On, { macros, png = [47, 51], run, machine = GHOSTTY, theme = { value: 'dark' } }: World = {}) {
   const compiles: string[][] = []
   const stdout = (argv: string[]) => {
     if (argv[0] === 'uname') return 'Darwin\n'
@@ -42,7 +42,7 @@ function world(on: On, { macros, png = [47, 51], run, machine = GHOSTTY }: World
   mock.env(on, Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)))
   const clock = mock.clock(on)
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-  on('config.list', () => ({ value: [{ key: 'theme', value: 'dark' }] }) as never)
+  on('config.list', () => ({ value: [{ key: 'theme', value: theme.value }] }) as never)
   on('process.run', async (_$, e) => {
     const { argv } = e as { argv: string[] }
     const answer = run?.(argv)
@@ -227,6 +227,28 @@ test('the model is told about LaTeX always, and typst blocks only with typst', {
   const note = sections.find(section => section.id === 'texel:math')
   expect(note?.text).toContain('\\( ... \\)')
   expect(note?.text).not.toContain('```typst')
+})
+
+test('with the note turned off, the model is told nothing', { timeoutMs: 15000, options: { promptNote: false } }, async ($, on) => {
+  world(on)
+  on('prompt.compose', () => ({ sections: [] }) as never)
+  expect((await composed($)).sections.find(section => section.id === 'texel:math')).toBeUndefined()
+})
+
+test('where texel does not draw, the model is told nothing', { timeoutMs: 15000 }, async ($, on) => {
+  world(on, { machine: { ...GHOSTTY, tmux: '/tmp/tmux-501/default' } })
+  on('prompt.compose', () => ({ sections: [] }) as never)
+  expect((await composed($)).sections.find(section => section.id === 'texel:math')).toBeUndefined()
+})
+
+test('a new theme is read again, and math following the text takes its colour', { timeoutMs: 15000, options: { mathColor: '' } }, async ($, on) => {
+  const theme = { value: 'dark' }
+  const { show } = world(on, { theme })
+  on('config.set', (_$, e) => ({ value: (e as { value: string }).value }) as never)
+  expect(inkColour(images(await (await show($, 'so \\(x\\)')).drawn())[0]!)).toBe('e6e6e6')
+  theme.value = 'light'
+  await $.config.set({ key: 'theme', value: 'light' } as never)
+  expect(inkColour(images(await (await show($, 'so \\(x\\)')).drawn())[0]!)).toBe('1f1f1f')
 })
 
 test('with typst, the model is told about typst blocks too', { timeoutMs: 15000 }, async ($, on) => {

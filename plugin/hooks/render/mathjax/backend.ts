@@ -3,7 +3,7 @@
 // terminal's grid. Nothing to install and nothing to wait for, so it answers
 // every draw directly.
 
-import { blockCells, type Grid, type Ink } from '../../layout/geometry'
+import { blockCells, PX_PER_PT, type Grid, type Ink } from '../../layout/geometry'
 import { toBase64 } from '../base64'
 import type { LatexJob, MathBackend } from '../renderer'
 import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
@@ -16,8 +16,6 @@ export type MathStyle = { grid: Grid; color: string; inlineScale: number; macros
 
 /** The x-height of MathJax's TeX font, in em: math is sized so it matches the terminal's. */
 const X_HEIGHT = 0.442
-/** Pixels per point at full resolution: 216 ppi. */
-const PX_PER_PT = 3
 /** The most pixels an Image takes, as RGBA bytes. */
 export const MAX_BYTES = 2 * 1024 * 1024
 

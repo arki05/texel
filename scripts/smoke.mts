@@ -127,6 +127,7 @@ if (!version) {
     // A fresh folder: every run happens, none is served from an earlier one.
     cacheDir: mkdtempSync(join(tmpdir(), 'texel-smoke-')),
     style: { grid, color: 'e6e6e6' },
+    allowPackages: true,
   })
   check('typst figure', await typst.fresh({ kind: 'typst', typst: '$ sum_(k=1)^n k $', maxColumns: 80 }))
   check('typst prose', await typst.fresh({ kind: 'typst', typst: 'A paragraph long enough to wrap. '.repeat(8), maxColumns: 40 }))

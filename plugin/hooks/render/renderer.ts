@@ -39,19 +39,15 @@ export type Renderer = {
   fresh: Answers<never>
 }
 
-/** LaTeX to `math`, typst blocks to `typst`, or, with no typst, the failure `withoutTypst`. */
-export function route(math: MathBackend, typst: TypstBackend | undefined, withoutTypst: RenderFailure): Renderer {
-  function answers<Pending>(ask: (backend: TypstBackend, job: TypstJob) => Promise<Rendered | RenderFailure | Pending>): Answers<Pending> {
-    return {
-      ink: tex => math.ink(tex),
-      picture: async job => {
-        if (job.kind !== 'typst') return math.picture(job)
-        return typst ? ask(typst, job) : withoutTypst
-      },
-    }
-  }
+/** The typst backend where typst cannot run: every block fails with `failure`. */
+export function unavailableTypst(failure: RenderFailure): TypstBackend {
+  return { known: async () => failure, fresh: async () => failure }
+}
+
+/** LaTeX to `math`, typst blocks to `typst`. */
+export function route(math: MathBackend, typst: TypstBackend): Renderer {
   return {
-    known: answers((backend, job) => backend.known(job)),
-    fresh: answers<never>((backend, job) => backend.fresh(job)),
+    known: { ink: tex => math.ink(tex), picture: job => (job.kind === 'typst' ? typst.known(job) : math.picture(job)) },
+    fresh: { ink: tex => math.ink(tex), picture: job => (job.kind === 'typst' ? typst.fresh(job) : math.picture(job)) },
   }
 }

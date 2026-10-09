@@ -47,7 +47,7 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
     calls,
     compiledTo,
     failWith: (f: typeof fail) => (fail = f),
-    backend: (cache = new TypstCache(), c: Compiler = compiler) => createTypstBackend({ io, compiler: c, cache, style, cacheDir: '/cache' }),
+    backend: (cache = new TypstCache(), c: Compiler = compiler, allowPackages = true) => createTypstBackend({ io, compiler: c, cache, style, cacheDir: '/cache', allowPackages }),
     compiler,
   }
 }
@@ -110,6 +110,17 @@ describe('typst backend', () => {
     await backend().fresh(block())
     await backend(new TypstCache(), { ...compiler, id: 'other typst' }).fresh(block())
     expect([...disk.keys()].filter(path => path.endsWith('.png'))).toHaveLength(2)
+  })
+
+  test('with packages off, a block importing one is skipped, never run; others are drawn', async () => {
+    const { backend, calls } = world()
+    const b = backend(new TypstCache(), undefined, false)
+    const importing = { kind: 'typst', typst: '#import "@preview/cetz:0.4.2"', maxColumns: 80 } as const
+    const skipped = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
+    expect(await b.known(importing)).toEqual(skipped)
+    expect(await b.fresh(importing)).toEqual(skipped)
+    expect(calls.compile).toBe(0)
+    expect(await b.fresh(block())).toMatchObject({ columns: expect.any(Number) })
   })
 
   test('a picture is made under a name of its own and moved into place whole', async () => {

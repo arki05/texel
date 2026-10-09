@@ -7,8 +7,9 @@ blocks rendered as images, inline with the text around them.
 <!-- A screenshot or short recording goes here. -->
 
 - **LaTeX, with nothing to install.** `\( … \)`, `\[ … \]`, `$ … $`,
-  `$$ … $$` and `latex`/`math` code fences are typeset by MathJax, which runs
-  inside the plugin.
+  `$$ … $$` and ```` ```math ```` fences are typeset by MathJax, which runs
+  inside the plugin. ```` ```latex ```` and ```` ```tex ```` fences stay code,
+  as LaTeX source to read or copy.
 - **Inline math sits in the line.** Formulas sit on the text's baseline at a
   readable size; a tall one (a fraction, a matrix) gives its line the extra
   rows it needs, as LaTeX does, and the paragraph re-wraps around it.
@@ -20,8 +21,8 @@ blocks rendered as images, inline with the text around them.
 
 ## Requirements
 
-- **Claude Code** with plugin hooks (mods). They are early access, so texel
-  may need updating as Claude Code changes.
+- **Claude Code 2.1.292 or newer**, with plugin hooks (mods). They are early
+  access, so texel may need updating as Claude Code changes.
 - **A terminal that shows Claude Code's images**: kitty, Ghostty, or cmux
   (Ghostty-based). Not through tmux. Elsewhere texel steps aside and Claude
   Code's own rendering stays.
@@ -38,6 +39,7 @@ In Claude Code:
 ```
 
 Answer `y` to add the marketplace, then choose a scope. texel is active at once.
+From a shell: `claude plugin install texel --marketplace arki05/texel`.
 
 ## Use
 
@@ -74,15 +76,35 @@ All in `/config`, under texel.
 | `terminalFont` | JetBrains Mono | Your terminal's font, so math matches its proportions: JetBrains Mono (Ghostty's default), Menlo / DejaVu Sans Mono (kitty's), SF Mono, Monaco, or Custom with `fontAspect`, `fontXHeight` and `fontBaseline`. |
 | `images` | auto | Draw pictures: `auto` (in kitty and Ghostty, not tmux), `always`, `never`. |
 
+## Limitations
+
+- **One colour per formula.** `\color` and `\colorbox` are read, but a
+  formula is drawn in the math colour; a `\colorbox` shows its contents
+  without the box's background.
+- **Rendered math cannot be copied.** Selecting it copies placeholder
+  characters; `/texel source` shows the LaTeX.
+- **Characters MathJax's fonts lack.** In `\text{…}`, accented Latin letters
+  (ä, é, ñ, š, …) are drawn; ß, æ, ø, å, ç, Greek, Cyrillic and CJK are not,
+  and a formula using them shows its source and names the character.
+- **TeX packages:** base, AMS, newcommand, boldsymbol, braket, mathtools,
+  cancel, color and textmacros. An unknown command is an error, as in LaTeX.
+- **No equation numbers.** `\tag` and numbered environments show their
+  source.
+- **Not through tmux**, which does not pass the pictures through.
+- **Very wide inline formulas** (ones that would have to shrink below half
+  size to fit the line) show their source.
+
 ## How it works
 
 texel hooks Claude Code's rendering of transcript rows. A reply's markdown is
 split into prose, inline math, display math and typst blocks.
 
 - **LaTeX** goes to MathJax, bundled into the plugin, whose SVG texel fills
-  into pixels itself: a plugin has no canvas and no WebAssembly, so a small
-  rasteriser (exact area coverage, the technique of font-rs and tiny-skia)
-  does it, checked against resvg in development.
+  into pixels itself: a plugin has no canvas and no WebAssembly. MathJax's
+  SVG is read as outlines (strokes, clipping and its stylesheet's table
+  rules included; anything else is refused, not guessed at), and a small
+  rasteriser fills them by exact area coverage, the technique of font-rs and
+  tiny-skia. Development checks it against resvg over a corpus of formulas.
 - **typst blocks** go to the `typst` command line, a few at a time, and are
   cached by content in your cache folder (`~/Library/Caches/texel`, or
   `$XDG_CACHE_HOME/texel`).
@@ -94,15 +116,17 @@ split into prose, inline math, display math and typst blocks.
 ## Develop
 
 ```sh
-npm install                   # build tooling: MathJax, esbuild, resvg (dev only)
+npm install                   # build tooling: MathJax, esbuild, TypeScript, resvg (dev only)
+npm test                      # the plugin's tests (claude plugin test plugin)
+npm run typecheck             # after `npm test` once: it writes the types Claude Code gives a plugin
+npm run smoke                 # both backends for real; the drawing against resvg
 npm run build:mathjax         # rebuild the bundled MathJax into plugin/hooks/render/mathjax/vendor
-npm run smoke                 # both backends for real; the rasteriser against resvg
-claude plugin test plugin     # the plugin's tests
+npm run check:vendor          # the same, failing if the committed bundle differs
 claude plugin validate .      # marketplace, manifest and hooks
 claude --plugin-dir plugin    # a session with this checkout's texel, reloaded on edit
 ```
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The bundled MathJax is Apache-2.0, its licence in
-`plugin/hooks/render/mathjax/vendor/LICENSE`.
+MIT, see [LICENSE](LICENSE). The bundled MathJax is Apache-2.0, its licence
+and provenance in `plugin/hooks/render/mathjax/vendor/`.
