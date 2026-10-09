@@ -17,11 +17,7 @@
 // text font's.
 #let size = length("x-height") / 0.4415
 
-// A typst block, `max-columns` the widest it may be: a figure that fits is
-// centred at its own size, at least a cell narrower than allowed (render/
-// typst/backend.ts tells natural size by it), with a cell's width and half a
-// row to spare, as layout/geometry.ts's blockCells sizes display math;
-// anything wider is laid out at the full width, so its prose wraps.
+// A typst block, `max-columns` the widest it may be, on whole cells.
 #let typst-block(body) = {
   let fg = rgb("#" + input("foreground"))
   set page(width: auto, height: auto, margin: 0pt, fill: none)
@@ -42,19 +38,20 @@
   set table(stroke: fg, inset: 0.45em)
   context {
     let maxw = int(input("max-columns")) * cw
-    let m = measure(body)
-    if m.width == 0pt or m.height == 0pt { panic("the block draws nothing") }
-    if m.width + cw <= maxw {
-      let cols = calc.ceil((m.width + cw) / cw)
-      let rows = calc.max(1, calc.ceil((m.height + ch * 0.5) / ch))
-      box(width: cols * cw, height: rows * ch, align(center + horizon, body))
-    } else {
-      // Typst measures prose from the first line's cap height to the last
-      // one's baseline: room above for ascenders and accents, below for
-      // descenders.
-      let (top, bottom) = (0.25 * ch, 0.45 * ch)
-      let h = measure(block(width: maxw, body)).height + top + bottom
-      box(width: maxw, height: calc.max(1, calc.ceil(h / ch)) * ch, inset: (top: top), body)
-    }
+    // Its width laid out within the allowed one: a figure's own, all of it
+    // for what stretches to fill it (a `1fr` column, a full-width box).
+    let natural = measure(body, width: maxw).width
+    if natural == 0pt { panic("the block draws nothing") }
+    // Laid out at its own width with a cell to spare where that fits
+    // (render/typst/backend.ts tells natural size by it being narrower than
+    // allowed), else at the full width, so its prose wraps.
+    let w = if natural + cw <= maxw { calc.ceil((natural + cw) / cw) * cw } else { maxw }
+    // Its height measured at that width. Typst measures text from the first
+    // line's cap height to the last one's baseline: room above for ascenders
+    // and accents, below for descenders.
+    let (top, bottom) = (0.25 * ch, 0.45 * ch)
+    let h = measure(block(width: w, body)).height + top + bottom
+    // Centred as one block; its own lines keep their alignment.
+    box(width: w, height: calc.max(1, calc.ceil(h / ch)) * ch, inset: (top: top), align(center, box({ set align(start); body })))
   }
 }

@@ -34,7 +34,7 @@ export const MAX_CELLS = 255
 /**
  * The cells a block (display math, a typst figure) takes: its ink, `width` x
  * `height` points, with a cell's width and half a row to spare, so it never
- * touches what is around it. texel.typ sizes typst figures by the same rule.
+ * touches what is around it.
  */
 export function blockCells(grid: Grid, width: number, height: number) {
   return {
