@@ -1,22 +1,28 @@
-// What the view draws through: two backends that make pictures. MathJax, for
-// LaTeX, runs inside the hooks module and answers at once; typst, for typst
-// blocks, runs as a process of its own, so it answers from what it has
-// already made or does the work, which the view starts and does not wait on.
+// What layout draws through. Inline math goes to MathJax, inside the hooks
+// module, which answers at once. A block goes to the renderer its kind
+// names: MathJax again for display math, typst for a typst block, which runs
+// as a process of its own and answers "not yet" until it has drawn it.
 
 import type { Ink, Placement } from '../geometry'
+import type { BlockKind } from '../markdown/parse'
 import type { Rendered, RenderFailure } from './result'
 
-/** LaTeX math, inline (drawn as placed) or on its own. */
-export type LatexJob = { kind: 'inline'; tex: string; placement: Placement } | { kind: 'display'; tex: string }
+/** Inline math: measured, then drawn as placed in its line. */
+export type InlineRenderer = {
+  ink(tex: string): Promise<Ink | RenderFailure>
+  picture(tex: string, placement: Placement): Promise<Rendered | RenderFailure>
+}
+
+/**
+ * A block's body drawn at most `maxColumns` wide, or why not; undefined while
+ * it is not ready, and the messages are drawn again when it is.
+ */
+export type BlockRenderer = (body: string, maxColumns: number) => Promise<Rendered | RenderFailure | undefined>
+
+export type Renderers = { inline: InlineRenderer; blocks: Record<BlockKind, BlockRenderer> }
 
 /** Typst markup, laid out at most `maxColumns` wide: a figure, or prose that wraps. */
-export type TypstJob = { kind: 'typst'; typst: string; maxColumns: number }
-
-/** LaTeX in the hooks module: quick enough to answer every time, so it never defers. */
-export type MathBackend = {
-  ink(tex: string): Promise<Ink | RenderFailure>
-  picture(job: LatexJob): Promise<Rendered | RenderFailure>
-}
+export type TypstJob = { typst: string; maxColumns: number }
 
 /** Typst in a process of its own: answers from what it already made, or runs. */
 export type TypstBackend = {

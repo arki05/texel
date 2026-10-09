@@ -5,7 +5,7 @@
 import { hash } from '../hash'
 import { Memo } from './memo'
 import { pngSize } from '../png'
-import type { TypstBackend, TypstJob } from '../renderer'
+import type { BlockRenderer, TypstBackend, TypstJob } from '../renderer'
 import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
 import type { Compiler } from './compiler'
 import { importsPackage, program, widthFree, type Program, type TypstStyle } from './program'
@@ -42,9 +42,21 @@ export type TypstOptions = {
 
 const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
 
-/** The typst backend where typst cannot run: every block fails with `failure`. */
-export function unavailableTypst(failure: RenderFailure): TypstBackend {
-  return { known: async () => failure, fresh: async () => failure }
+/**
+ * Typst blocks drawn through `backend`, at most `maxWidth` columns wide: what
+ * it already knows, at once; otherwise its run starts in the background and
+ * `redraw` is called when it ends. A draw never waits on typst: a hook that
+ * did could outlast its time and be drawn as plain source, with nothing to
+ * draw it again.
+ */
+export function typstBlocks(backend: TypstBackend, maxWidth: number, redraw: () => void): BlockRenderer {
+  return async (typst, maxColumns) => {
+    const job = { typst, maxColumns: Math.min(maxColumns, maxWidth) }
+    const known = await backend.known(job)
+    if (known) return known
+    void backend.fresh(job).then(redraw, redraw)
+    return undefined
+  }
 }
 
 export function createTypstBackend({ io, compiler, cache, style, cacheDir, allowPackages }: TypstOptions): TypstBackend {

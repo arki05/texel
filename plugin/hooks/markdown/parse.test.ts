@@ -10,7 +10,7 @@ describe('parse', () => {
 
   test('display math, math and typst fences', () => {
     const text = 'Intro\n\n$$\n\\int_0^1 x\\,dx\n$$\n\n```math\nE = mc^2\n```\n\n```typst\n$ a^2 $\n```\n\n```ts\nconst x = 1\n```'
-    expect(parse(text).map(s => s.kind)).toEqual(['markdown', 'display', 'display', 'typst', 'markdown'])
+    expect(parse(text).map(s => (s.kind === 'block' ? s.renderer : s.kind))).toEqual(['markdown', 'math', 'math', 'typst', 'markdown'])
   })
 
   test('latex and tex fences are source to copy, and stay code', () => {
@@ -34,7 +34,7 @@ describe('parse', () => {
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
     expect(seg.lines[0]?.atoms).toEqual([
       { kind: 'text', text: 'The area ' },
-      { kind: 'math', tex: '\\pi r^2' },
+      { kind: 'math', tex: '\\pi r^2', source: '$\\pi r^2$' },
       { kind: 'text', text: ', ' },
       { kind: 'text', text: 'grows', bold: true },
       { kind: 'text', text: ' fast.' },
@@ -49,13 +49,13 @@ describe('parse', () => {
   test('prices next to code spans stay prose', () => {
     const [seg] = parse('Euler $e^{i\\pi}$. Prices like $5 and $10 stay text, and so does `$HOME`.')
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
-    expect(seg.lines[0]?.atoms.filter(a => a.kind === 'math')).toEqual([{ kind: 'math', tex: 'e^{i\\pi}' }])
+    expect(seg.lines[0]?.atoms.filter(a => a.kind === 'math')).toEqual([{ kind: 'math', tex: 'e^{i\\pi}', source: '$e^{i\\pi}$' }])
   })
 
   test('delimiters inside code spans are not math', () => {
     const text = 'Earlier messages with `$$` in them render too.\n\n---\n\n$$\n\\int_0^1 x\\,dx\n$$\n\n$$\n\\begin{pmatrix} a \\\\ b \\end{pmatrix}\n$$'
-    const display = parse(text).filter(s => s.kind === 'display')
-    expect(display.map(s => (s.kind === 'display' ? s.tex : ''))).toEqual(['\\int_0^1 x\\,dx', '\\begin{pmatrix} a \\\\ b \\end{pmatrix}'])
+    const display = parse(text).filter(s => s.kind === 'block')
+    expect(display.map(s => (s.kind === 'block' ? s.body : ''))).toEqual(['\\int_0^1 x\\,dx', '\\begin{pmatrix} a \\\\ b \\end{pmatrix}'])
     expect(needsRender(parse('It handles (`$$…$$`, `\\[…\\]`, fences), and `$…$`.'))).toBe(false)
   })
 
@@ -73,18 +73,18 @@ describe('parse', () => {
     if (seg?.kind !== 'paragraph') throw new Error('expected paragraph')
     expect(seg.lines[0]?.atoms).toEqual([
       { kind: 'text', text: 'Take ' },
-      { kind: 'math', tex: '\\frac{x^2}{y}' },
+      { kind: 'math', tex: '\\frac{x^2}{y}', source: '\\( \\frac{x^2}{y} \\)' },
       { kind: 'text', text: ' for $3.' },
     ])
-    expect(parse('\\[\\forall x: \\sum x\\]').map(s => s.kind)).toEqual(['display'])
+    expect(parse('\\[\\forall x: \\sum x\\]').map(s => s.kind)).toEqual(['block'])
   })
 
   test('display delimiters mid-sentence split the paragraph, as in LaTeX', () => {
     expect(parse('so $$\\frac{3}{4}$$ of it, and \\[x\\] too').map(s => s.kind)).toEqual([
       'markdown',
-      'display',
+      'block',
       'markdown',
-      'display',
+      'block',
       'markdown',
     ])
   })

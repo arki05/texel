@@ -1,7 +1,7 @@
 // Remembers what each keyed run of work settled to, for as long as the module
 // is loaded, so a redraw asks typst nothing it already asked.
 
-import { isFailure, type RenderFailure } from '../result'
+import type { RenderFailure } from '../result'
 
 /** How many times work that failed transiently is tried before its failure is kept. */
 const ATTEMPTS = 2
@@ -32,11 +32,15 @@ export class Memo {
     if (settled) return Promise.resolve(settled)
     const running = this.running.get(key) as Promise<T | RenderFailure> | undefined
     if (running) return running
+    // `work` rejecting is the transient failure; what it resolves to, a failure or not, is kept.
     const run = work()
-      .catch((error: unknown): RenderFailure => ({ error: String(error), transient: true }))
-      .then(result => {
+      .then(
+        result => ({ result, transient: false }),
+        (error: unknown) => ({ result: { error: String(error) } as RenderFailure, transient: true }),
+      )
+      .then(({ result, transient }) => {
         this.running.delete(key)
-        const failures = isFailure(result) && result.transient ? (this.failures.get(key) ?? 0) + 1 : 0
+        const failures = transient ? (this.failures.get(key) ?? 0) + 1 : 0
         if (failures > 0 && failures < ATTEMPTS) this.failures.set(key, failures)
         else this.settle(key, result)
         return result

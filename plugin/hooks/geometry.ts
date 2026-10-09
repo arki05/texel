@@ -31,6 +31,16 @@ export const PX_PER_PT = 3
 /** The most cells a picture covers, each way: an Image's limit. */
 export const MAX_CELLS = 255
 
+/** The most picture bytes (base64 PNG) one message's drawing may carry: Claude Code refuses the whole drawing past it. */
+export const MESSAGE_PICTURE_BYTES = 2 * 1024 * 1024
+
+/**
+ * The least scale a formula is drawn at, inline or on its own: one that
+ * fits its width only smaller (a long formula in a narrow terminal) is too
+ * small to read, and shows its source instead.
+ */
+export const MIN_READABLE = 0.5
+
 /**
  * The cells a block (display math, a typst figure) takes: its ink, `width` x
  * `height` points, with a cell's width and half a row to spare, so it never

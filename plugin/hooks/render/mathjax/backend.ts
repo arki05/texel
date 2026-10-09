@@ -3,11 +3,11 @@
 // terminal's grid. Nothing to install and nothing to wait for, so it answers
 // every draw directly.
 
-import { blockCells, PX_PER_PT, type Grid, type Ink } from '../../geometry'
+import { blockCells, MIN_READABLE, PX_PER_PT, type Grid, type Ink } from '../../geometry'
 import { toBase64 } from '../base64'
 import { encodePng } from '../png'
-import type { LatexJob, MathBackend } from '../renderer'
-import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
+import type { BlockRenderer, InlineRenderer } from '../renderer'
+import { isFailure, TOO_WIDE, tooLarge, type Rendered, type RenderFailure } from '../result'
 import { accented } from './accents'
 import { drawingOf } from './drawing'
 import { rasterize, type Box, type Raster } from './raster'
@@ -20,6 +20,9 @@ export type MathStyle = { grid: Grid; color: string; inlineScale: number; macros
 const X_HEIGHT = 0.442
 
 type Result = Ink | Rendered | RenderFailure
+
+/** LaTeX inline, and on its own as a block: both answered at once. */
+export type MathBackend = InlineRenderer & { block: BlockRenderer }
 
 /**
  * What MathJax keeps between draws, for as long as the module is loaded: the
@@ -131,27 +134,48 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     return { picture: { png: toBase64(encodePng(pixels, width, height)) }, columns, rows }
   }
 
+  // `r`'s ink, in points at full resolution.
+  const inkOf = (r: Inked): Ink => ({
+    width: (r.ink.right - r.ink.left) / PX_PER_PT,
+    above: (r.baseline - r.ink.top) / PX_PER_PT,
+    below: (r.ink.bottom - r.baseline) / PX_PER_PT,
+  })
+
   return {
     async ink(source) {
       return remembered(['ink', source], () => {
         const r = inked(source, false, style.inlineScale)
-        if (isFailure(r)) return r
-        return { width: (r.ink.right - r.ink.left) / PX_PER_PT, above: (r.baseline - r.ink.top) / PX_PER_PT, below: (r.ink.bottom - r.baseline) / PX_PER_PT }
+        return isFailure(r) ? r : inkOf(r)
       })
     },
 
-    async picture(job: LatexJob) {
-      return remembered(job, () => {
-        if (job.kind === 'inline') {
-          // As fitted: `scale` of its natural size, its ink `dy` points down its box.
-          const { columns, rows, scale, dy, side } = job.placement
-          const r = inked(job.tex, false, style.inlineScale * scale)
-          return isFailure(r) ? r : picture(r, columns, rows, Math.round(dy * PX_PER_PT), side)
-        }
-        // On its own, at its natural size, in whole cells with room around it.
-        const r = inked(job.tex, true, 1)
+    // As fitted: `scale` of its natural size, its ink `dy` points down its box.
+    async picture(source, placement) {
+      return remembered(['inline', source, placement], () => {
+        const { columns, rows, scale, dy, side } = placement
+        const r = inked(source, false, style.inlineScale * scale)
+        return isFailure(r) ? r : picture(r, columns, rows, Math.round(dy * PX_PER_PT), side)
+      })
+    },
+
+    // On its own, in whole cells with room around it: at its natural size,
+    // or as small as it must be to fit `maxColumns`, down to MIN_READABLE.
+    // Known by its scale, so every width it fits at its own size shares one.
+    async block(source, maxColumns) {
+      const natural = remembered(['block ink', source], () => {
+        const r = inked(source, true, 1)
+        return isFailure(r) ? r : inkOf(r)
+      })
+      if (isFailure(natural)) return natural
+      const fits = blockCells(grid, natural.width, natural.above + natural.below).columns <= maxColumns
+      // A hair under the width, so rounding to pixels cannot add a column.
+      const scale = fits ? 1 : (0.99 * (maxColumns - 1) * grid.cellWidth) / natural.width
+      if (scale < MIN_READABLE) return TOO_WIDE
+      return remembered(['block', source, scale], () => {
+        const r = inked(source, true, scale)
         if (isFailure(r)) return r
-        const { columns, rows } = blockCells(grid, (r.ink.right - r.ink.left) / PX_PER_PT, (r.ink.bottom - r.ink.top) / PX_PER_PT)
+        const ink = inkOf(r)
+        const { columns, rows } = blockCells(grid, ink.width, ink.above + ink.below)
         return picture(r, columns, rows)
       })
     },

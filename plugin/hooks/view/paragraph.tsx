@@ -3,16 +3,15 @@
 
 import type { RenderElement } from 'claude-code'
 
-import { formulaSource, layoutParagraph, type Formula, type LaidLine } from '../layout/paragraph'
+import type { Formula, LaidLine } from '../layout/paragraph'
 import type { Line } from '../layout/wrap'
 import { CODE } from '../look'
-import type { InlineLine } from '../markdown/parse'
-import { image, type ViewContext } from './parts'
+import { image, type Ui } from './parts'
 
 // One wrapped row. Text sits on the row's text row, `row.above` rows down; a
 // formula's own rows above its text row line up with it.
-function drawWrapped(ctx: ViewContext, row: Line<Formula>, lead: RenderElement[]): RenderElement[] {
-  const { Box, Text } = ctx.ui
+function drawWrapped(ui: Ui, row: Line<Formula>, lead: RenderElement[]): RenderElement[] {
+  const { Box, Text } = ui
   return [
     ...lead,
     ...row.pieces.map(piece =>
@@ -24,7 +23,7 @@ function drawWrapped(ctx: ViewContext, row: Line<Formula>, lead: RenderElement[]
         </Box>
       ) : (
         <Box marginTop={row.above - piece.above}>
-          {image(ctx.ui, piece.box.picture, piece.columns, piece.box.rows, formulaSource(piece.box.tex))}
+          {image(ui, piece.box.picture, piece.columns, piece.box.rows, piece.box.source)}
         </Box>
       ),
     ),
@@ -33,8 +32,8 @@ function drawWrapped(ctx: ViewContext, row: Line<Formula>, lead: RenderElement[]
 
 // A paragraph line: a heading, a list item or quote with its marker, or plain
 // prose; a list item's later rows hang under its text.
-function drawLine(ctx: ViewContext, line: LaidLine): RenderElement {
-  const { Box, Text } = ctx.ui
+function drawLine(ui: Ui, line: LaidLine): RenderElement {
+  const { Box, Text } = ui
   return (
     <Box flexDirection="column" paddingLeft={line.indent}>
       {line.rows.map((row, i) => {
@@ -48,7 +47,7 @@ function drawLine(ctx: ViewContext, line: LaidLine): RenderElement {
             : []
         return (
           <Box flexDirection="row" alignItems="flex-start" paddingLeft={i === 0 ? 0 : line.hang}>
-            {drawWrapped(ctx, row, marker)}
+            {drawWrapped(ui, row, marker)}
           </Box>
         )
       })}
@@ -56,8 +55,7 @@ function drawLine(ctx: ViewContext, line: LaidLine): RenderElement {
   )
 }
 
-/** A paragraph with inline math. */
-export async function drawParagraph(ctx: ViewContext, lines: InlineLine[]): Promise<RenderElement> {
-  const laid = await layoutParagraph(ctx.math, lines, { grid: ctx.grid, fit: ctx.fit, columns: ctx.columns })
-  return <ctx.ui.Box flexDirection="column">{laid.map(line => drawLine(ctx, line))}</ctx.ui.Box>
+/** Prose with inline math, as laid out. */
+export function drawLines(ui: Ui, lines: LaidLine[]): RenderElement {
+  return <ui.Box flexDirection="column">{lines.map(line => drawLine(ui, line))}</ui.Box>
 }

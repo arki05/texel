@@ -200,11 +200,14 @@ test('with a stricter smallest scale, the same formula takes a row', { timeoutMs
   expect(images(await drawing.drawn())[0]?.rows).toBe(2)
 })
 
-test('display math wider than the transcript keeps its size and shows its source', { timeoutMs: 15000 }, async ($, on) => {
+test('display math wider than the transcript shrinks to fit it, and below half its size shows its source', { timeoutMs: 15000 }, async ($, on) => {
   const { show } = world(on)
-  const drawing = await show($, '\\[ a + b + c + d + e + f + g + h + i + j + k + l + m \\]', { columns: 20 })
-  expect(images(await drawing.drawn())).toHaveLength(0)
-  expect(await drawing.find({ text: 'wider than the transcript' })).toBeDefined()
+  const formula = '\\[ a + b + c + d + e + f + g + h + i + j + k + l + m \\]'
+  const [fitted] = images(await (await show($, formula, { columns: 34 })).drawn())
+  expect(fitted!.columns).toBeLessThanOrEqual(30)
+  const narrow = await show($, formula, { columns: 16 })
+  expect(images(await narrow.drawn())).toHaveLength(0)
+  expect(await narrow.find({ text: 'render failed: too wide to fit at a readable size' })).toBeDefined()
 })
 
 test('a typst block is laid out at the transcript\'s width, up to typstMaxWidth', { timeoutMs: 15000, options: { typstMaxWidth: 60 } }, async ($, on) => {

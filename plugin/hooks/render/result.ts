@@ -9,16 +9,19 @@ export type Picture = { file: string } | { png: string }
 export type Rendered = { picture: Picture; columns: number; rows: number }
 
 /**
- * Why there is no picture: a render that failed (`transient` when trying
- * again could succeed), or one `skipped` by the person's settings.
+ * Why there is no picture: a render that failed, or one `skipped`, by a
+ * setting or for want of typst, which is not rendered rather than failed.
  */
-export type RenderFailure = { error: string; transient?: true; skipped?: true }
+export type RenderFailure = { error: string; skipped?: true }
 
 /** Why a picture of `columns` x `rows` cells cannot be shown, if it cannot. */
 export function tooLarge(columns: number, rows: number): RenderFailure | undefined {
   if (columns <= MAX_CELLS && rows <= MAX_CELLS) return undefined
   return { error: `too large to show: ${columns} x ${rows} cells (an image holds ${MAX_CELLS} x ${MAX_CELLS})` }
 }
+
+/** A formula that fits the width it has only below a readable size (MIN_READABLE). */
+export const TOO_WIDE: RenderFailure = { error: 'too wide to fit at a readable size' }
 
 export function isFailure(result: object): result is RenderFailure {
   return 'error' in result

@@ -1,41 +1,40 @@
-// One message (a transcript row), drawn from its parsed segments: the engine's
-// Markdown for plain prose, texel's own lines for prose with inline math, and
-// pictures for display math and typst blocks.
+// One message (a transcript row), drawn from its layout (layout/message.ts):
+// the engine's Markdown for plain prose and for source, texel's own lines
+// for prose with inline math, and pictures for blocks, centred.
 
 import type { RenderElement } from 'claude-code'
 
-import type { Segment } from '../markdown/parse'
-import { drawBlock } from './block'
-import { drawParagraph } from './paragraph'
-import { readyOr, type ViewContext } from './parts'
+import type { Laid } from '../layout/message'
+import { drawLines } from './paragraph'
+import { image, sourceWithNote, type Ui } from './parts'
 
-async function drawSegment(ctx: ViewContext, segment: Segment): Promise<RenderElement> {
-  switch (segment.kind) {
+function drawPart(ui: Ui, part: Laid): RenderElement {
+  switch (part.kind) {
     case 'markdown':
-      return <ctx.ui.Markdown text={segment.text} />
-    case 'display':
-      return drawBlock(ctx, await ctx.math.picture({ kind: 'display', tex: segment.tex }), segment.source, segment.tex)
-    case 'typst': {
-      const job = { kind: 'typst', typst: segment.code, maxColumns: Math.min(ctx.columns, ctx.typstMaxWidth) } as const
-      const drawn = await readyOr(ctx, () => ctx.typst.known(job), () => ctx.typst.fresh(job))
-      return drawBlock(ctx, drawn, segment.source, 'typst block')
+      return <ui.Markdown text={part.text} />
+    case 'lines':
+      return drawLines(ui, part.lines)
+    case 'picture': {
+      const { picture, columns, rows } = part.rendered
+      return (
+        <ui.Box justifyContent="center" width="100%">
+          {image(ui, picture, columns, rows, part.alt)}
+        </ui.Box>
+      )
     }
-    case 'paragraph':
-      return drawParagraph(ctx, segment.lines)
+    case 'source':
+      return part.note ? sourceWithNote(ui, part.source, part.note) : <ui.Markdown text={part.source} />
   }
 }
 
 /**
  * The tree for one message. `background` paints it (a prompt's row), with a
- * column of padding either side.
+ * column of padding either side, which its layout left room for.
  */
-export async function drawMessage(ctx: ViewContext, segments: Segment[], background?: string) {
-  const { Box } = ctx.ui
-  const inner = background ? { ...ctx, columns: Math.max(8, ctx.columns - 2) } : ctx
-  const drawn = await Promise.all(segments.map(segment => drawSegment(inner, segment)))
+export function drawMessage(ui: Ui, laid: Laid[], background?: string): RenderElement {
   return (
-    <Box flexDirection="column" gap={1} backgroundColor={background} paddingX={background ? 1 : 0}>
-      {drawn}
-    </Box>
+    <ui.Box flexDirection="column" gap={1} backgroundColor={background} paddingX={background ? 1 : 0}>
+      {laid.map(part => drawPart(ui, part))}
+    </ui.Box>
   )
 }

@@ -30,13 +30,6 @@ export type InlineFit = {
   placement: Placement
 }
 
-/**
- * The least scale a formula is drawn at: one that only fits the line smaller
- * than this (a long formula in a narrow terminal) is too small to read, and
- * shows its source instead.
- */
-export const MIN_READABLE = 0.5
-
 /** Past this many extra rows, the formula shrinks instead. */
 const MAX_EXTRA_ROWS = 8
 /** Ink never quite touches the box's edge. */

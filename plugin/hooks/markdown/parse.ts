@@ -5,7 +5,8 @@
 /** How a run of text is drawn; `dim` is texel's own, for notes. */
 export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean; dim?: boolean }
 
-export type Atom = ({ kind: 'text'; text: string } & TextStyle) | { kind: 'math'; tex: string }
+/** Prose, or a formula: its TeX, and its source as written (`$x$`, `\(x\)`), which a failed one shows. */
+export type Atom = ({ kind: 'text'; text: string } & TextStyle) | { kind: 'math'; tex: string; source: string }
 
 export type InlineLine = {
   /** What leads the line: a list marker, a quote bar, or nothing. */
@@ -17,16 +18,19 @@ export type InlineLine = {
   atoms: Atom[]
 }
 
+/** What draws a block: MathJax (display math), or typst (a typst block). */
+export type BlockKind = 'math' | 'typst'
+
 export type Segment =
   | { kind: 'markdown'; text: string }
-  | { kind: 'display'; tex: string; source: string }
-  | { kind: 'typst'; code: string; source: string }
+  /** Prose with inline math. */
   | { kind: 'paragraph'; lines: InlineLine[]; source: string }
+  /** Display math or a typst block: its body, and its source as written. */
+  | { kind: 'block'; renderer: BlockKind; body: string; source: string }
 
-// A ```math fence is a formula, as on GitHub; ```latex and ```tex are LaTeX
-// source to read or copy, and stay code.
-const MATH_FENCES = new Set(['math'])
-const TYPST_FENCES = new Set(['typst', 'typ'])
+// The fences that are blocks, by language: ```math is a formula, as on
+// GitHub; ```latex and ```tex are LaTeX source to read or copy, and stay code.
+const FENCES: Record<string, BlockKind> = { math: 'math', typst: 'typst', typ: 'typst' }
 
 // Before a delimiter: no backslash, or an even run of them, each pair an
 // escaped backslash, so `\\(` is a backslash and a parenthesis.
@@ -78,7 +82,7 @@ function tokenizeProse(text: string, style: Emphasis): Atom[] {
     last = m.index + m[0].length
     if (m[1] !== undefined || m[2] !== undefined) {
       const tex = (m[1] ?? m[2])!.trim()
-      if (tex) atoms.push({ kind: 'math', tex })
+      if (tex) atoms.push({ kind: 'math', tex, source: m[0] })
       else pushText(m[0])
     }
     else if (m[3] !== undefined || m[4] !== undefined) atoms.push(...tokenizeProse((m[3] ?? m[4])!, { ...style, bold: true }))
@@ -171,7 +175,7 @@ function nonFenced(text: string, out: Segment[]) {
     if (!tex) continue
     proseSegments(text.slice(last, m.index), out)
     last = m.index + m[0].length
-    out.push({ kind: 'display', tex, source })
+    out.push({ kind: 'block', renderer: 'math', body: tex, source })
   }
   proseSegments(text.slice(last), out)
 }
@@ -186,14 +190,9 @@ export function parse(reply: string): Segment[] {
     nonFenced(text.slice(last, m.index), out)
     last = m.index + m[0].length
     const lang = (m[3] ?? '').toLowerCase()
-    const body = (m[4] ?? '').replace(/\n$/, '')
-    if (MATH_FENCES.has(lang)) {
-      out.push({ kind: 'display', tex: body, source: m[0] })
-    } else if (TYPST_FENCES.has(lang)) {
-      out.push({ kind: 'typst', code: body, source: m[0] })
-    } else {
-      pushMarkdown(out, m[0])
-    }
+    const renderer = Object.hasOwn(FENCES, lang) ? FENCES[lang] : undefined
+    if (renderer) out.push({ kind: 'block', renderer, body: (m[4] ?? '').replace(/\n$/, ''), source: m[0] })
+    else pushMarkdown(out, m[0])
   }
   // A fence still streaming in has no close yet: keep it, and what follows, as source.
   const rest = text.slice(last)

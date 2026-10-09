@@ -1,47 +1,18 @@
-// What every part of the view shares: the drawing's context, the one way a
-// part waits for typst, and the elements more than one part draws.
+// What more than one part of the view draws: a picture, and source with a
+// note saying why it is not one.
 
 import type { Elements, RenderElement } from 'claude-code'
 
-import type { FitOptions } from '../layout/fit'
-import type { Grid } from '../geometry'
-import type { MathBackend, TypstBackend } from '../render/renderer'
 import type { Picture } from '../render/result'
 
-export type Table = Elements['terminal']
-
-export type ViewContext = {
-  ui: Table
-  math: MathBackend
-  typst: TypstBackend
-  grid: Grid
-  fit: FitOptions
-  /** The columns a message's content may take. */
-  columns: number
-  /** The widest a typst block is laid out, in columns, however wide the message. */
-  typstMaxWidth: number
-  /** Draws the messages again: called once work started in the background is done. */
-  redraw: () => void
-}
-
-/**
- * What `known` answers, if it can; otherwise `work` starts in the background
- * and redraws when done, and the answer is undefined meanwhile. A draw never
- * waits on typst: a hook that did could outlast its time and be drawn as
- * plain source, with nothing to draw it again.
- */
-export async function readyOr<T>(ctx: ViewContext, known: () => Promise<T | undefined>, work: () => Promise<unknown>) {
-  const ready = await known()
-  if (ready !== undefined) return ready
-  void work().then(ctx.redraw, ctx.redraw)
-  return undefined
-}
+/** The terminal surface's elements, which every part of the view draws with. */
+export type Ui = Elements['terminal']
 
 /**
  * A picture at its own size. An Image is scaled to whatever box it gets, so
  * its box never shrinks; past the edge (mid-resize, say) it is clipped instead.
  */
-export function image(ui: Table, picture: Picture, columns: number, rows: number, alt: string): RenderElement {
+export function image(ui: Ui, picture: Picture, columns: number, rows: number, alt: string): RenderElement {
   const { Box, Image } = ui
   return (
     <Box flexShrink={0}>
@@ -51,7 +22,7 @@ export function image(ui: Table, picture: Picture, columns: number, rows: number
 }
 
 /** Source drawn as the engine draws markdown, with a dim line saying why it is not a picture. */
-export function sourceWithNote(ui: Table, source: string, note: string): RenderElement {
+export function sourceWithNote(ui: Ui, source: string, note: string): RenderElement {
   const { Box, Markdown, Text } = ui
   return (
     <Box flexDirection="column">

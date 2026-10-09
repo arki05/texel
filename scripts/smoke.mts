@@ -47,9 +47,9 @@ for (const tex of ['x', 'x_i^2', '\\frac{a}{b}', '\\R^n', '\\begin{pmatrix} a & 
   check(`mathjax ink ${tex}`, ink)
   if (isFailure(ink)) continue
   const { placement } = fitInline(ink as Ink, grid, 80, DEFAULT_FIT)
-  check(`mathjax inline ${tex}`, await math.picture({ kind: 'inline', tex, placement }))
+  check(`mathjax inline ${tex}`, await math.picture(tex, placement))
 }
-check('mathjax display', await math.picture({ kind: 'display', tex: '\\int_0^1 x^2 \\, dx = \\frac{1}{3}' }))
+check('mathjax display', (await math.block('\\int_0^1 x^2 \\, dx = \\frac{1}{3}', 80))!)
 check('mathjax error is reported', await math.ink('\\frac{a}{'), true)
 
 // Drawing and rasteriser against resvg, on the same MathJax SVG at the same
@@ -143,11 +143,11 @@ if (!version) {
     style: { grid, color: 'e6e6e6' },
     allowPackages: true,
   })
-  check('typst figure', await typst.fresh({ kind: 'typst', typst: '$ sum_(k=1)^n k $', maxColumns: 80 }))
-  check('typst prose', await typst.fresh({ kind: 'typst', typst: 'A paragraph long enough to wrap. '.repeat(8), maxColumns: 40 }))
-  check('typst block with its own page rule', await typst.fresh({ kind: 'typst', typst: '#set page(width: auto, margin: 8pt)\n$ a^2 + b^2 = c^2 $', maxColumns: 80 }))
+  check('typst figure', await typst.fresh({ typst: '$ sum_(k=1)^n k $', maxColumns: 80 }))
+  check('typst prose', await typst.fresh({ typst: 'A paragraph long enough to wrap. '.repeat(8), maxColumns: 40 }))
+  check('typst block with its own page rule', await typst.fresh({ typst: '#set page(width: auto, margin: 8pt)\n$ a^2 + b^2 = c^2 $', maxColumns: 80 }))
   // Content that stretches to its width (a 1fr column) measures tall without one: it must not come out tall.
-  const stretchy = await typst.fresh({ kind: 'typst', typst: '#table(columns: (auto, 1fr), [Area], [A finding long enough to wrap if its column had no width], [Parser], [fixed])', maxColumns: 120 })
+  const stretchy = await typst.fresh({ typst: '#table(columns: (auto, 1fr), [Area], [A finding long enough to wrap if its column had no width], [Parser], [fixed])', maxColumns: 120 })
   check('typst stretchy table is sized at its width', isFailure(stretchy) || stretchy.rows > 4 ? { error: `rows ${'rows' in stretchy ? stretchy.rows : '?'}` } : stretchy)
   // Blocks like the ones Claude writes, each at a narrow and a wide width:
   // drawn, on whole cells, and no taller than their content needs. Those
@@ -169,7 +169,7 @@ if (!version) {
       continue
     }
     for (const maxColumns of [40, 120]) {
-      const drawn = await typst.fresh({ kind: 'typst', typst: block.typst, maxColumns })
+      const drawn = await typst.fresh({ typst: block.typst, maxColumns })
       const name = `typst ${block.name} at ${maxColumns}`
       if (isFailure(drawn) || !('file' in drawn.picture)) {
         check(name, isFailure(drawn) ? drawn : { error: 'not a file' })
@@ -180,7 +180,7 @@ if (!version) {
       check(name, whole && drawn.columns <= maxColumns && drawn.rows < 60 ? drawn : { error: `${width} x ${height} px, ${drawn.columns} x ${drawn.rows} cells` })
     }
   }
-  check('typst syntax error is reported', await typst.fresh({ kind: 'typst', typst: '#let x = (', maxColumns: 40 }), true)
+  check('typst syntax error is reported', await typst.fresh({ typst: '#let x = (', maxColumns: 40 }), true)
 }
 
 console.log(failures ? `\n${failures} failed` : '\nboth backends work')

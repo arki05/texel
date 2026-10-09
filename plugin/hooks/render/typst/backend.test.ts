@@ -52,7 +52,7 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
   }
 }
 
-const block = (maxColumns = 80) => ({ kind: 'typst', typst: 'figure', maxColumns }) as const
+const block = (maxColumns = 80) => ({ typst: 'figure', maxColumns }) as const
 
 describe('typst backend', () => {
   test('known answers nothing before a run, and everything after one', async () => {
@@ -88,10 +88,10 @@ describe('typst backend', () => {
     const { backend, calls, failWith } = world()
     failWith(() => Promise.reject(new Error('interrupted')) as never)
     const b = backend()
-    expect(await b.fresh(block())).toMatchObject({ transient: true })
+    expect(await b.fresh(block())).toEqual({ error: 'Error: interrupted' })
     expect(await b.known(block())).toBe(undefined)
-    expect(await b.fresh(block())).toMatchObject({ transient: true })
-    expect(await b.known(block())).toMatchObject({ transient: true })
+    expect(await b.fresh(block())).toEqual({ error: 'Error: interrupted' })
+    expect(await b.known(block())).toEqual({ error: 'Error: interrupted' })
     await b.fresh(block())
     expect(calls.compile).toBe(2)
   })
@@ -115,7 +115,7 @@ describe('typst backend', () => {
   test('with packages off, a block importing one is skipped, never run; others are drawn', async () => {
     const { backend, calls } = world()
     const b = backend(new TypstCache(), undefined, false)
-    const importing = { kind: 'typst', typst: '#import "@preview/cetz:0.4.2"', maxColumns: 80 } as const
+    const importing = { typst: '#import "@preview/cetz:0.4.2"', maxColumns: 80 } as const
     const skipped = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
     expect(await b.known(importing)).toEqual(skipped)
     expect(await b.fresh(importing)).toEqual(skipped)

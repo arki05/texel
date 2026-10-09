@@ -13,14 +13,14 @@ import { needsRender, parse } from './markdown/parse'
 import { PROMPT_SECTION, promptNote } from './prompt'
 import { hash } from './render/hash'
 import { Limiter } from './render/typst/limit'
+import { layoutMessage } from './layout/message'
 import { createMathBackend, MathCache } from './render/mathjax/backend'
-import type { TypstBackend } from './render/renderer'
-import { createTypstBackend, TypstCache, unavailableTypst, type Io } from './render/typst/backend'
+import type { BlockRenderer } from './render/renderer'
+import { createTypstBackend, TypstCache, typstBlocks, type Io } from './render/typst/backend'
 import { cliCompiler, type Run } from './render/typst/cli'
 import type { TypstStyle } from './render/typst/program'
 import { readSettings, type Settings } from './settings'
 import { drawMessage } from './view/message'
-import type { ViewContext } from './view/parts'
 
 // The folder of texel.typ, within the plugin.
 const LIB = 'hooks/render/typst'
@@ -101,30 +101,34 @@ function files($: EngineInterface): Io {
   }
 }
 
-// The typst backend, where a typst texel can use is installed.
-function typstBackend($: EngineInterface, known: Host, style: TypstStyle, allowPackages: boolean): TypstBackend {
-  if ('unavailable' in known.typst) return unavailableTypst({ error: known.typst.unavailable })
+// Typst blocks: drawn by the typst installed, or, where texel cannot use
+// it, not rendered, saying what it needs.
+function typstRenderer($: EngineInterface, known: Host, style: TypstStyle, settings: Settings): BlockRenderer {
+  if ('unavailable' in known.typst) {
+    const failure = { error: known.typst.unavailable, skipped: true } as const
+    return async () => failure
+  }
   const { version } = known.typst
   const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
-  return createTypstBackend({
+  const backend = createTypstBackend({
     io: files($),
     compiler: cliCompiler({ run, limiter: typstSlots, lib: `${$.plugin.root}/${LIB}`, version, library: known.library }),
     cache: typstCache,
     cacheDir: cacheDir(known.machine),
     style,
-    allowPackages,
+    allowPackages: settings.typstPackages,
   })
+  return typstBlocks(backend, settings.typstMaxWidth, () => $.ui.invalidate('ui.render'))
 }
 
 /**
- * What the view draws a message with, or undefined where texel leaves the
- * message to the engine: no pictures here, or sources asked for.
+ * A message drawn, or undefined where texel leaves it to the engine: nothing
+ * in it to render, no pictures here, or sources asked for. A prompt is
+ * painted as Claude Code paints its row, with a column of padding either side.
  */
-async function prepare(
-  $: EngineInterface,
-  e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
-  settings: Settings,
-): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
+async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>, settings: Settings, isPrompt: boolean) {
+  const segments = parse(e.props.text)
+  if (!needsRender(segments)) return undefined
   if (await read($, showingSource)) return undefined
   const known = await hostOf($)
   if (!drawsPictures(settings.images, known.machine)) return undefined
@@ -133,31 +137,10 @@ async function prepare(
   const grid = gridFor(settings.font)
   const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
   const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineScale: settings.inlineScale, macros })
-  const typst = typstBackend($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings.typstPackages)
-  const ctx: ViewContext = {
-    ui: $.ui.resolve(e),
-    math,
-    typst,
-    grid,
-    fit: settings.fit,
-    typstMaxWidth: settings.typstMaxWidth,
-    columns: (e.viewport?.columns ?? 100) - GUTTER,
-    redraw: () => $.ui.invalidate('ui.render'),
-  }
-  return { ctx, theme: current }
-}
-
-async function draw(
-  $: EngineInterface,
-  e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
-  settings: Settings,
-  isPrompt: boolean,
-) {
-  const segments = parse(e.props.text)
-  if (!needsRender(segments)) return undefined
-  const prepared = await prepare($, e, settings)
-  if (!prepared) return undefined
-  return drawMessage(prepared.ctx, segments, isPrompt ? PROMPT_BACKGROUND[prepared.theme] : undefined)
+  const typst = typstRenderer($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings)
+  const columns = (e.viewport?.columns ?? 100) - GUTTER - (isPrompt ? 2 : 0)
+  const laid = await layoutMessage({ inline: math, blocks: { math: math.block, typst } }, segments, { grid, fit: settings.fit, columns })
+  return drawMessage($.ui.resolve(e), laid, isPrompt ? PROMPT_BACKGROUND[current] : undefined)
 }
 
 // What `/texel` reports: what texel draws with here.
