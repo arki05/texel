@@ -15,8 +15,12 @@ export type Grid = {
 /** A formula's ink at its natural size, in points: its width, and its reach above and below the baseline. */
 export type Ink = { width: number; above: number; below: number }
 
-/** Where an inline formula is drawn: its box in cells, its scale, and its ink's offset down the box (pt). */
-export type Placement = { columns: number; rows: number; scale: number; dy: number }
+/**
+ * Where an inline formula is drawn: its box in cells, its scale, its ink's
+ * offset down the box (pt), and which side of the box the ink keeps to,
+ * centred if neither.
+ */
+export type Placement = { columns: number; rows: number; scale: number; dy: number; side?: 'left' | 'right' }
 
 /**
  * Pixels per point a picture is made at, full size: 216 ppi, sharp at the

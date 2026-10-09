@@ -29,4 +29,20 @@ describe('layoutParagraph', () => {
     const laid = await layoutParagraph(answers({ long: wide }), line('long'), { grid, fit: DEFAULT_FIT, columns: 40 })
     expect(texts(laid)).toEqual(['see \\(long\\)', ' (too large for the line)'])
   })
+
+  test("a formula's ink keeps to the side where punctuation touches it, centred between spaces", async () => {
+    const sides: Record<string, unknown> = {}
+    const recording: Answers<undefined> = {
+      ink: async () => ({ width: 8, above: 7.9, below: 0.2 }),
+      picture: async job => {
+        if (job.kind === 'inline') sides[`${job.tex}`] = job.placement.side
+        return { picture: { png: '' }, columns: 1, rows: 1 }
+      },
+    }
+    const text = (t: string) => ({ kind: 'text', text: t }) as const
+    const math = (tex: string) => ({ kind: 'math', tex }) as const
+    const atoms = [text('so '), math('a'), text(': then '), math('b'), text(' and ('), math('c'), text(' x ('), math('d'), text(').')]
+    await layoutParagraph(recording, [{ prefix: '', indent: 0, heading: false, atoms }], { grid, fit: DEFAULT_FIT, columns: 80 })
+    expect(sides).toEqual({ a: 'right', b: undefined, c: 'left', d: undefined })
+  })
 })

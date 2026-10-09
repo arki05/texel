@@ -116,15 +116,16 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     return raster.ink ? (raster as Inked) : { error: 'the formula draws nothing' }
   }
 
-  // `raster`'s ink as a PNG of `columns` x `rows` cells: centred across,
-  // and `y` pixels down or, without, centred down too.
-  function picture(raster: Inked, columns: number, rows: number, y?: number): Rendered | RenderFailure {
+  // `raster`'s ink as a PNG of `columns` x `rows` cells: against `side` or
+  // centred across, and `y` pixels down or, without, centred down too.
+  function picture(raster: Inked, columns: number, rows: number, y?: number, side?: 'left' | 'right'): Rendered | RenderFailure {
     const refused = tooLarge(columns, rows)
     if (refused) return refused
     const width = Math.round(columns * grid.cellWidth * PX_PER_PT)
     const height = Math.round(rows * grid.cellHeight * PX_PER_PT)
     const { top, bottom, left, right } = raster.ink
-    const x = Math.round((width - (right - left)) / 2)
+    const slack = width - (right - left)
+    const x = side === 'left' ? 0 : side === 'right' ? slack : Math.round(slack / 2)
     const pixels = place(raster, width, height, x, y ?? Math.round((height - (bottom - top)) / 2))
     return { picture: { png: toBase64(encodePng(pixels, width, height)) }, columns, rows }
   }
@@ -142,9 +143,9 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
       return remembered(job, () => {
         if (job.kind === 'inline') {
           // As fitted: `scale` of its natural size, its ink `dy` points down its box.
-          const { columns, rows, scale, dy } = job.placement
+          const { columns, rows, scale, dy, side } = job.placement
           const r = inked(job.tex, false, style.inlineScale * scale)
-          return isFailure(r) ? r : picture(r, columns, rows, Math.round(dy * PX_PER_PT))
+          return isFailure(r) ? r : picture(r, columns, rows, Math.round(dy * PX_PER_PT), side)
         }
         // On its own, at its natural size, in whole cells with room around it.
         const r = inked(job.tex, true, 1)

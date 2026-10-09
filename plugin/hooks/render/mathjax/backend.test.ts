@@ -38,6 +38,18 @@ describe('MathJax backend', () => {
     expect([...bytes.subarray(opaque * 4, opaque * 4 + 3)]).toEqual([0xb3, 0xbd, 0x5a])
   })
 
+  test("an inline formula's ink keeps to the side it is placed against", async () => {
+    const at = async (side?: 'left' | 'right') => {
+      const { bytes, width } = pixels(await backend().picture({ kind: 'inline', tex: 'x', placement: { columns: 3, rows: 1, scale: 1, dy: 5, side } }))
+      const inked = [...Array(bytes.length / 4).keys()].filter(i => bytes[i * 4 + 3]! > 8).map(i => i % width)
+      return [Math.min(...inked), width - 1 - Math.max(...inked)] as const
+    }
+    expect((await at('left'))[0]).toBe(0)
+    expect((await at('right'))[1]).toBe(0)
+    const [left, right] = await at()
+    expect(Math.abs(left - right)).toBeLessThanOrEqual(1)
+  })
+
   test('display math is drawn at its own size, in whole cells', async () => {
     const drawn = await backend().picture({ kind: 'display', tex: '\\int_0^1 x\\,dx' })
     expect(drawn).toMatchObject({ rows: expect.any(Number), columns: expect.any(Number) })
