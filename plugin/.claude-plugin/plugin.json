@@ -35,6 +35,12 @@
       "description": "A typst block importing a package (@preview/...) makes typst download it from the typst registry. Off: such a block shows its source (best effort: an import whose path is held in a variable is not caught).",
       "default": true
     },
+    "typstMaxWidth": {
+      "type": "number",
+      "title": "Typst block width",
+      "description": "The widest a typst block is laid out, in terminal columns: a wider terminal centres it, a narrower one fits it to its width.",
+      "default": 120
+    },
     "inlineSize": {
       "type": "number",
       "title": "Inline math size",

@@ -18,6 +18,8 @@ export type ViewContext = {
   fit: FitOptions
   /** The columns a message's content may take. */
   columns: number
+  /** The widest a typst block is laid out, in columns, however wide the message. */
+  typstMaxWidth: number
   /** Draws the messages again: called once work started in the background is done. */
   redraw: () => void
 }

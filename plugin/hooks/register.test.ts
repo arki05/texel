@@ -165,6 +165,13 @@ test('display math wider than the transcript keeps its size and shows its source
   expect(await drawing.find({ text: 'wider than the transcript' })).toBeDefined()
 })
 
+test('a typst block is laid out at the transcript\'s width, up to typstMaxWidth', { timeoutMs: 15000, options: { typstMaxWidth: 60 } }, async ($, on) => {
+  const { compiles, show } = world(on)
+  await show($, '```typst\nhi\n```', { columns: 200 })
+  await show($, '```typst\nho\n```', { columns: 40 })
+  expect(compiles.map(argv => input(argv, 'max-columns'))).toEqual(['60', '36'])
+})
+
 test('math takes the math colour, typst blocks the text colour', { timeoutMs: 15000 }, async ($, on) => {
   const { compiles, show } = world(on)
   const drawing = await show($, 'so \\(x\\)\n\n```typst\nhi\n```')

@@ -72,6 +72,7 @@ All in `/config`, under texel.
 | `mathColor` | `#b3bd5a` | Colour of LaTeX math; empty follows the text colour. |
 | `typstColor` | empty | Colour of typst blocks' text; empty follows the text colour. |
 | `typstPackages` | on | Let typst blocks import packages (typst downloads them). Off: such a block shows its source; best effort, as an import whose path is held in a variable is not caught. |
+| `typstMaxWidth` | 120 | The widest a typst block is laid out, in columns: a wider terminal centres it, a narrower one fits it. |
 | `inlineSize` | 1.2 | Inline math's size against the text's x-height. |
 | `inlineMinScale` | 0.75 | How far a formula may shrink before its line gains a row. |
 | `inlineMaxScale` | 1 | How far a formula smaller than its row may grow to fill it. |

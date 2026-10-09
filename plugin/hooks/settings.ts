@@ -24,6 +24,8 @@ export type Settings = {
   images: 'auto' | 'always' | 'never'
   /** Whether a typst block may import packages, which typst downloads. */
   typstPackages: boolean
+  /** The widest a typst block is laid out, in columns. */
+  typstMaxWidth: number
   /** Whether the system prompt tells Claude this terminal typesets math. */
   promptNote: boolean
 }
@@ -84,6 +86,7 @@ export function readSettings(options: PluginOptions): Settings {
     font: font(options),
     images: choice(options, 'images', ['auto', 'always', 'never']),
     typstPackages: flag(options, 'typstPackages'),
+    typstMaxWidth: Math.round(number(options, 'typstMaxWidth', 120, 20, 255)),
     promptNote: flag(options, 'promptNote'),
   }
 }

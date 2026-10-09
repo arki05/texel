@@ -140,6 +140,7 @@ async function prepare(
     typst,
     grid,
     fit: settings.fit,
+    typstMaxWidth: settings.typstMaxWidth,
     columns: (e.viewport?.columns ?? 100) - GUTTER,
     redraw: () => $.ui.invalidate('ui.render'),
   }
