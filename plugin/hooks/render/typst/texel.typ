@@ -21,7 +21,9 @@
 #let typst-block(body) = {
   let fg = rgb("#" + input("foreground"))
   set page(width: auto, height: auto, margin: 0pt, fill: none)
-  set text(fill: fg, size: size)
+  // No punctuation hanging past a line's end: at the full width there is
+  // no margin for it, and it would be cut off.
+  set text(fill: fg, size: size, overhang: false)
   set par(justify: true)
   // Lines given no colour take the text's, not black, which a dark terminal
   // hides: typst folds it into a stroke that names only its width (a table's
