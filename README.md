@@ -121,6 +121,35 @@ split into prose, inline math, display math and typst blocks.
 - **Nothing waits.** A picture not ready yet shows its source and is drawn
   when it is, so a resize or a long reply never holds up the transcript.
 
+## What texel runs, reads and sends
+
+texel draws what is already in your transcript; it sends nothing anywhere
+itself.
+
+- **Reads:** the environment variables `HOME`, `XDG_CACHE_HOME`, `TERM`,
+  `TERM_PROGRAM`, `KITTY_WINDOW_ID` and `TMUX` (where its cache lives, and
+  whether the terminal shows pictures); your `~/.config/texel/macros.tex`,
+  if you have one; its own `texel.typ`; and the pictures it cached.
+- **Runs**, once when it loads: `uname -s`, `defaults read -g
+  AppleInterfaceStyle` (macOS's light or dark appearance), `typst --version`,
+  `mkdir -p` on its cache folder, and a short `/bin/sh` script (`ls`, `tail`,
+  `rm`) that keeps the newest 4,000 cached pictures and removes the rest.
+  For each typst block: `typst compile`, the block on its stdin and a PNG
+  into the cache, then `mv` to put the finished file in place. LaTeX runs
+  inside the plugin, no program at all.
+- **Network:** none from texel. typst downloads a package from the typst
+  registry when a block imports one (`@preview/...`); turn `typstPackages`
+  off to stop that.
+- **Hooks:** `ui.render` redraws replies and your prompts; `prompt.compose`
+  adds one short section to the system prompt (the note above, which
+  `promptNote` turns off); `session.start` and `command.run` provide
+  `/texel`; `config.set` on `theme` passes your change on untouched and then
+  redraws in the new theme's colours.
+- **Bundled code:** MathJax and fflate, minified, in the plugin's vendor
+  folders; `npm run build:vendor` rebuilds them byte for byte from the
+  sources named in `scripts/`. Their reflective code (prototypes,
+  `defineProperty`) is MathJax's and fflate's own.
+
 ## Develop
 
 ```sh

@@ -55,9 +55,9 @@ async function allOf<T extends Record<string, Promise<unknown>>>(named: T): Prom
   return Object.fromEntries(entries) as { [K in keyof T]: Awaited<T[K]> }
 }
 
-// What a command prints, trimmed; undefined where it will not run.
-const output = ($: EngineInterface, argv: string[]) =>
-  $.process.run(argv).then(
+// What a command printed, trimmed; undefined where it would not run.
+const output = (run: Promise<{ stdout: string }>) =>
+  run.then(
     result => result.stdout.trim(),
     () => undefined,
   )
@@ -70,9 +70,9 @@ async function learnHost($: EngineInterface): Promise<Host> {
     TERM_PROGRAM: $.env.get('TERM_PROGRAM'),
     KITTY_WINDOW_ID: $.env.get('KITTY_WINDOW_ID'),
     TMUX: $.env.get('TMUX'),
-    os: output($, ['uname', '-s']),
-    typst: output($, ['typst', '--version']),
-    appearance: output($, ['defaults', 'read', '-g', 'AppleInterfaceStyle']),
+    os: output($.process.run(['uname', '-s'])),
+    typst: output($.process.run(['typst', '--version'])),
+    appearance: output($.process.run(['defaults', 'read', '-g', 'AppleInterfaceStyle'])),
     libraryHash: $.fs.read(`${$.plugin.root}/${LIB}/texel.typ`).then(hash),
   })
   const machine: Machine = { home: home ?? '', os: os ?? '', env }
@@ -201,11 +201,14 @@ export const register: Register = (on, options) => {
     return { text: status(settings, await hostOf($), await read($, showingSource)) }
   })
 
-  // A new theme: once it is written, read it again and draw every message in its colours.
-  on('config.set', { key: 'theme' }, async ($, e, next) => {
-    const result = await next(e)
-    theme = undefined
-    $.ui.invalidate('ui.render')
-    return result
-  })
+  // The change itself is passed on untouched; once it is written, texel
+  // reads the theme again and draws every message in its colours.
+  on('config.set', { key: 'theme' }, ($, e, next) => {
+    const written = next(e)
+    void written.finally(() => {
+      theme = undefined
+      $.ui.invalidate('ui.render')
+    })
+    return written
+  }).catch((_, e, next) => next(e))
 }

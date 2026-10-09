@@ -3,20 +3,20 @@
 // dynamic loading: every TeX package and font is imported statically, since
 // a hooks module may not `import()`.
 
-import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js'
-import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js'
-import 'mathjax-full/js/input/tex/ams/AmsConfiguration.js'
-import 'mathjax-full/js/input/tex/base/BaseConfiguration.js'
-import 'mathjax-full/js/input/tex/boldsymbol/BoldsymbolConfiguration.js'
-import 'mathjax-full/js/input/tex/braket/BraketConfiguration.js'
-import 'mathjax-full/js/input/tex/cancel/CancelConfiguration.js'
-import 'mathjax-full/js/input/tex/color/ColorConfiguration.js'
-import 'mathjax-full/js/input/tex/mathtools/MathtoolsConfiguration.js'
-import 'mathjax-full/js/input/tex/newcommand/NewcommandConfiguration.js'
-import 'mathjax-full/js/input/tex/textmacros/TextMacrosConfiguration.js'
-import { TeX } from 'mathjax-full/js/input/tex.js'
-import { mathjax } from 'mathjax-full/js/mathjax.js'
-import { SVG } from 'mathjax-full/js/output/svg.js'
+import { liteAdaptor } from 'mathjax-full/ts/adaptors/liteAdaptor.ts'
+import { RegisterHTMLHandler } from 'mathjax-full/ts/handlers/html.ts'
+import 'mathjax-full/ts/input/tex/ams/AmsConfiguration.ts'
+import 'mathjax-full/ts/input/tex/base/BaseConfiguration.ts'
+import 'mathjax-full/ts/input/tex/boldsymbol/BoldsymbolConfiguration.ts'
+import 'mathjax-full/ts/input/tex/braket/BraketConfiguration.ts'
+import 'mathjax-full/ts/input/tex/cancel/CancelConfiguration.ts'
+import 'mathjax-full/ts/input/tex/color/ColorConfiguration.ts'
+import 'mathjax-full/ts/input/tex/mathtools/MathtoolsConfiguration.ts'
+import 'mathjax-full/ts/input/tex/newcommand/NewcommandConfiguration.ts'
+import 'mathjax-full/ts/input/tex/textmacros/TextMacrosConfiguration.ts'
+import { TeX } from 'mathjax-full/ts/input/tex.ts'
+import { mathjax } from 'mathjax-full/ts/mathjax.ts'
+import { SVG } from 'mathjax-full/ts/output/svg.ts'
 
 // Without `noundefined`, an unknown command is an error, as in LaTeX.
 // `textmacros` reads \text{…} as LaTeX does: accents, $…$ and all.

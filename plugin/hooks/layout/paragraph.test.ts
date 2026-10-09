@@ -14,14 +14,14 @@ const answers = (inks: Record<string, Ink>): InlineRenderer => ({
 })
 
 const texts = (laid: Awaited<ReturnType<typeof layoutParagraph>>) =>
-  laid!.flatMap(line => line.rows.flatMap(row => row.pieces.map(piece => (piece.kind === 'text' ? piece.text : `[${piece.box.source}]`))))
+  laid!.flatMap(line => line.rows.flatMap(row => row.pieces.map(piece => (piece.kind === 'text' ? piece.text : `<${piece.box.source}>`))))
 
 describe('layoutParagraph', () => {
   const line = (tex: string) => [{ prefix: '', indent: 0, atoms: [{ kind: 'text', text: 'see ' } as const, { kind: 'math', tex, source: `$${tex}$` } as const] }]
 
   test('a formula that fits the line is drawn', async () => {
     const laid = await layoutParagraph(answers({ x: { width: 8, above: 7.9, below: 0.2 } }), line('x'), { grid, fit: DEFAULT_FIT, columns: 40 })
-    expect(texts(laid)).toContain('[$x$]')
+    expect(texts(laid)).toContain('<$x$>')
   })
 
   test('one that would have to shrink past half its size shows its source instead', async () => {

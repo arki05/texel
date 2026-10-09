@@ -48,7 +48,8 @@ class Lru<V> {
     this.entries.clear()
   }
 
-  get size() {
+  /** How many entries it holds. */
+  count() {
     return this.entries.size
   }
 }

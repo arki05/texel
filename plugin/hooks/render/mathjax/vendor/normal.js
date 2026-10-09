@@ -1,1 +1,1 @@
-import{a}from"./chunk-CTEKGEUY.js";import"./chunk-G2IDHPTV.js";import"./chunk-EK7ODJWE.js";export default a();
+import{a}from"./chunk-6KVJUTSR.js";import"./chunk-2VCCM6FY.js";export{a as normal};

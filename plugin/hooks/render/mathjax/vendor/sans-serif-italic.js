@@ -1,1 +1,1 @@
-import{a}from"./chunk-26S2ON4I.js";import"./chunk-G2IDHPTV.js";import"./chunk-EK7ODJWE.js";export default a();
+import{a}from"./chunk-KATLMGY3.js";import"./chunk-2VCCM6FY.js";export{a as sansSerifItalic};

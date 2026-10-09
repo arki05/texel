@@ -1,1 +1,1 @@
-import{a}from"./chunk-IWS5DOEQ.js";import"./chunk-G2IDHPTV.js";import"./chunk-EK7ODJWE.js";export default a();
+import{a}from"./chunk-7VIRKEID.js";import"./chunk-2VCCM6FY.js";export{a as texOldstyleBold};

@@ -1,1 +1,1 @@
-import{a}from"./chunk-MWLCMBMP.js";import"./chunk-G2IDHPTV.js";import"./chunk-EK7ODJWE.js";export default a();
+import{a}from"./chunk-7AK33D6N.js";import"./chunk-2VCCM6FY.js";export{a as texCalligraphicBold};

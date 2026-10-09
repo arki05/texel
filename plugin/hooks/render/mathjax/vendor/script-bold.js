@@ -1,1 +1,1 @@
-import{a}from"./chunk-WLLEJFW6.js";import"./chunk-EK7ODJWE.js";export default a();
+import{a}from"./chunk-FLO3NQBP.js";export{a as scriptBold};

@@ -45,6 +45,14 @@ async function vendor({ pkg, url, holder, license, entry, out, uses, more = [] }
     platform: 'neutral',
     mainFields: ['module', 'main'],
     minify: true,
+    // Modern JavaScript, so classes stay classes: no helper reaching for
+    // __proto__, as code compiled to ES5 carries.
+    target: 'es2022',
+    // As MathJax compiles itself: a field declared in a class is no field
+    // until assigned, so a parent's constructor that sets it keeps its value.
+    tsconfigRaw: { compilerOptions: { useDefineForClassFields: false } },
+    // Characters as they are, not \u escapes, so every name reads as written.
+    charset: 'utf8',
     legalComments: 'none',
     outdir: dir,
     entryNames: '[name]',
@@ -86,7 +94,7 @@ texel's own code in scripts/${entry} is MIT like the rest of texel.
   console.log(`${pkg}: ${files.length} files, ${(size / 1024).toFixed(0)} KB in ${out}`)
 }
 
-const fonts = 'node_modules/mathjax-full/js/output/svg/fonts/tex'
+const fonts = 'node_modules/mathjax-full/ts/output/svg/fonts/tex'
 await vendor({
   pkg: 'mathjax-full',
   url: 'https://github.com/mathjax/MathJax-src',
@@ -94,8 +102,8 @@ await vendor({
   license: 'Apache License 2.0',
   entry: 'mathjax-entry.ts',
   out: 'plugin/hooks/render/mathjax/vendor',
-  uses: 'TeX input, SVG output and the TeX fonts, one module per font file, which convert TeX to an SVG tree',
-  more: readdirSync(join(root, fonts)).filter(f => f.endsWith('.js')).map(f => join(fonts, f)),
+  uses: 'TeX input, SVG output and the TeX fonts, one module per font file, built from MathJax\'s TypeScript sources, which convert TeX to an SVG tree',
+  more: readdirSync(join(root, fonts)).filter(f => f.endsWith('.ts')).map(f => join(fonts, f)),
 })
 await vendor({
   pkg: 'fflate',
