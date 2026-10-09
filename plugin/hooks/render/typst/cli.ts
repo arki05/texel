@@ -21,9 +21,12 @@ export type CliOptions = {
 
 const PPI = 216
 
-// Typst's own error: its first lines.
+// Typst's own error: its first lines, from the first `error:` on, past the
+// progress typst writes to stderr too (`downloading @preview/…`).
 function complaint(stderr: string): RenderFailure {
-  return { error: stderr.trim().split('\n').slice(0, 6).join('\n') }
+  const lines = stderr.trim().split('\n')
+  const first = lines.findIndex(line => line.startsWith('error:'))
+  return { error: lines.slice(Math.max(first, 0)).slice(0, 6).join('\n') }
 }
 
 export function cliCompiler({ run, limiter, lib, version, library }: CliOptions): Compiler {

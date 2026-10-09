@@ -33,6 +33,11 @@ describe('cliCompiler', () => {
     expect(await typst.compile(block, '/out.png')).toEqual({ error: 'error: unclosed delimiter\n  ┌─ <stdin>:1' })
   })
 
+  test("the error starts at typst's `error:`, past a package's download progress", async () => {
+    const stderr = 'downloading @preview/fletcher:0.5.8\nerror: unknown variable: nod\n  ┌─ <stdin>:3'
+    expect(await compiler({ exitCode: 1, stderr }).typst.compile(block, '/out.png')).toEqual({ error: 'error: unknown variable: nod\n  ┌─ <stdin>:3' })
+  })
+
   test('its id names everything that changes its output', () => {
     expect(compiler({ exitCode: 0 }).typst.id).toBe('typst-cli 0.15.1 ppi 216 texel.typ abc')
   })

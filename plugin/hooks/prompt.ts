@@ -15,6 +15,7 @@ export function promptNote({ typst }: { typst: boolean }) {
     lines.push(
       'A fenced ```typst block is typeset by typst and shown as a picture at the terminal\'s width: use one for a diagram (cetz), a table or a typeset derivation.',
       'Its text cannot be selected or copied, so keep code, commands and anything to copy out of it.',
+      'Leave out page setup (#set page): the picture is sized to fit the terminal.',
     )
   }
   return lines.join('\n')

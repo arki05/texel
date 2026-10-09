@@ -111,6 +111,7 @@ if (!version) {
   })
   check('typst figure', await typst.fresh({ kind: 'typst', typst: '$ sum_(k=1)^n k $', maxColumns: 80 }))
   check('typst prose', await typst.fresh({ kind: 'typst', typst: 'A paragraph long enough to wrap. '.repeat(8), maxColumns: 40 }))
+  check('typst block with its own page rule', await typst.fresh({ kind: 'typst', typst: '#set page(width: auto, margin: 8pt)\n$ a^2 + b^2 = c^2 $', maxColumns: 80 }))
   check('typst syntax error is reported', await typst.fresh({ kind: 'typst', typst: '#let x = (', maxColumns: 40 }), true)
 }
 

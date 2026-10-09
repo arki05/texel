@@ -17,7 +17,7 @@ const WIDTH = 'max-columns'
 /** The program that lays out `job` through texel.typ's `typst-block`. */
 export function program(job: TypstJob, { grid, color }: TypstStyle): Program {
   return {
-    source: `#import "/texel.typ": *\n#typst-block[\n${job.typst}\n]\n`,
+    source: `#import "/texel.typ": *\n#typst-block[\n${withoutPageRules(job.typst)}\n]\n`,
     inputs: {
       'cell-width': String(grid.cellWidth),
       'cell-height': String(grid.cellHeight),
@@ -32,6 +32,41 @@ export function program(job: TypstJob, { grid, color }: TypstStyle): Program {
 export function widthFree({ source, inputs }: Program): Program {
   const { [WIDTH]: _, ...rest } = inputs
   return { source, inputs: rest }
+}
+
+const PAGE_RULE = /#?set\s+page\s*\(/g
+
+/**
+ * `typst` without its `set page(…)` rules, each blanked up to its closing
+ * parenthesis but for its line breaks, so typst's line numbers still hold.
+ * texel sizes the page itself, and typst allows no page rule in the box a
+ * block is measured in; a block written as a document of its own has one.
+ */
+export function withoutPageRules(typst: string) {
+  let out = ''
+  let from = 0
+  for (const match of typst.matchAll(PAGE_RULE)) {
+    if (match.index < from) continue
+    const end = closingParen(typst, match.index + match[0].length)
+    if (end === undefined) break
+    out += typst.slice(from, match.index) + typst.slice(match.index, end).replace(/[^\n]/g, '')
+    from = end
+  }
+  return out + typst.slice(from)
+}
+
+// Just past the parenthesis that closes one opened before `at`, strings
+// skipped; undefined when none does.
+function closingParen(typst: string, at: number) {
+  let depth = 1
+  for (let i = at; i < typst.length; i++) {
+    const c = typst[i]
+    if (c === '"') {
+      for (i++; i < typst.length && typst[i] !== '"'; i++) if (typst[i] === '\\') i++
+    } else if (c === '(') depth++
+    else if (c === ')' && --depth === 0) return i + 1
+  }
+  return undefined
 }
 
 /** Whether typst markup imports or includes a package (`"@preview/..."`), which typst downloads. */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { importsPackage, program, widthFree, type TypstStyle } from './program'
+import { importsPackage, program, widthFree, withoutPageRules, type TypstStyle } from './program'
 
 const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }, color: 'e6e6e6' }
 const block = (maxColumns: number, typst = 'hi') => ({ kind: 'typst', typst, maxColumns }) as const
@@ -15,6 +15,19 @@ describe('program', () => {
   test('a block depends on the width; width-free, its programs agree', () => {
     expect(program(block(40), style)).not.toEqual(program(block(120), style))
     expect(widthFree(program(block(40), style))).toEqual(widthFree(program(block(120), style)))
+  })
+})
+
+describe('withoutPageRules', () => {
+  test('a page rule goes, nested parentheses and strings with them, its line breaks kept', () => {
+    const typst = '#set page(width: auto,\n  margin: (x: 8pt, y: calc.max(1, 2) * 1pt), header: ")")\n#set text(size: 9pt)\nhi'
+    expect(withoutPageRules(typst)).toBe('\n\n#set text(size: 9pt)\nhi')
+    expect(program(block(80, typst), style).source).toContain('#typst-block[\n\n\n#set text(size: 9pt)\nhi\n]')
+  })
+
+  test('inside code, too; other rules and unclosed ones stay', () => {
+    expect(withoutPageRules('#{ set page(height: auto); [x] }')).toBe('#{ ; [x] }')
+    expect(withoutPageRules('#set pagebreak-weak(x)\n#set page(')).toBe('#set pagebreak-weak(x)\n#set page(')
   })
 })
 
