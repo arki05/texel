@@ -1,6 +1,6 @@
 # texel
 
-### Built by Claude, for Claude.
+## Built by Claude, for Claude.
 
 Typeset math in Claude Code's terminal. texel is a Claude Code plugin that
 redraws Claude's replies, and your own prompts, with LaTeX math and typst
