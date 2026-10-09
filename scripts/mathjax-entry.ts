@@ -13,14 +13,36 @@ import 'mathjax-full/js/input/tex/cancel/CancelConfiguration.js'
 import 'mathjax-full/js/input/tex/color/ColorConfiguration.js'
 import 'mathjax-full/js/input/tex/mathtools/MathtoolsConfiguration.js'
 import 'mathjax-full/js/input/tex/newcommand/NewcommandConfiguration.js'
+import 'mathjax-full/js/input/tex/textmacros/TextMacrosConfiguration.js'
 import { TeX } from 'mathjax-full/js/input/tex.js'
 import { mathjax } from 'mathjax-full/js/mathjax.js'
 import { SVG } from 'mathjax-full/js/output/svg.js'
 
 // Without `noundefined`, an unknown command is an error, as in LaTeX.
-const PACKAGES = ['base', 'ams', 'newcommand', 'boldsymbol', 'braket', 'mathtools', 'cancel', 'color']
+// `textmacros` reads \text{…} as LaTeX does: accents, $…$ and all.
+const PACKAGES = ['base', 'ams', 'newcommand', 'boldsymbol', 'braket', 'mathtools', 'cancel', 'color', 'textmacros']
 
-export type SvgNode = { tag: string; attrs: Record<string, string>; children: SvgNode[] }
+// The accents MathJax's fonts draw over a letter, by the combining mark Unicode decomposes them to.
+const ACCENTS: Record<string, string> = {
+  '\u0300': '`', '\u0301': "'", '\u0302': '^', '\u0303': '~', '\u0304': '=',
+  '\u0306': 'u', '\u0307': '.', '\u0308': '"', '\u030C': 'v',
+}
+
+/**
+ * `tex` with its accented Latin letters, which MathJax's fonts lack, as the
+ * TeX accents they draw: `für` as `f{\"u}r`. A letter with an accent they
+ * cannot draw, or an i or j (whose dot TeX drops first), stays as it is.
+ */
+function accented(tex: string): string {
+  return tex.replace(/[\u00C0-\u017F]/g, letter => {
+    const [base = '', ...marks] = letter.normalize('NFD')
+    if (marks.length !== 1 || !/^[a-hk-zA-Z]$/.test(base) || !ACCENTS[marks[0]!]) return letter
+    return `{\\${ACCENTS[marks[0]!]}${base}}`
+  })
+}
+
+/** An SVG element: its tag, attributes and child elements, and a <text>'s characters. */
+export type SvgNode = { tag: string; attrs: Record<string, string>; children: SvgNode[]; text?: string }
 export type TexResult = SvgNode | { error: string }
 export type Tex = { convert(tex: string, display: boolean): TexResult }
 
@@ -31,7 +53,8 @@ function tree(node: unknown): SvgNode {
   const children = (adaptor.childNodes(node as never) as unknown[]).filter(child => adaptor.kind(child as never) !== '#text')
   const attrs: Record<string, string> = {}
   for (const { name, value } of adaptor.allAttributes(node as never)) attrs[name] = value
-  return { tag: adaptor.kind(node as never), attrs, children: children.map(tree) }
+  const tag = adaptor.kind(node as never)
+  return { tag, attrs, children: children.map(tree), ...(tag === 'text' && { text: adaptor.textContent(node as never) }) }
 }
 
 function find(node: SvgNode, test: (n: SvgNode) => boolean): SvgNode | undefined {
@@ -53,7 +76,13 @@ export function createTex(macros: string): Tex {
     OutputJax: new SVG({ fontCache: 'none' }),
   })
   const convert = (tex: string, display: boolean): TexResult => {
-    const root = tree(document.convert(tex, { display, em: 16, ex: 8, containerWidth: 1280 }))
+    let root: SvgNode
+    try {
+      root = tree(document.convert(accented(tex), { display, em: 16, ex: 8, containerWidth: 1280 }))
+    } catch (e) {
+      // MathJax's own failure, not a TeX error: too deep a nesting overflows its stack.
+      return { error: `MathJax failed: ${e instanceof Error ? e.message : String(e)}` }
+    }
     const svg = find(root, node => node.tag === 'svg')
     if (!svg) return { error: 'MathJax drew nothing' }
     const error = find(svg, node => node.attrs['data-mml-node'] === 'merror')
@@ -64,4 +93,11 @@ export function createTex(macros: string): Tex {
     if ('error' in defined) return { convert: () => ({ error: `in your macros: ${defined.error}` }) }
   }
   return { convert }
+}
+
+/** MathJax's stylesheet for its SVG, which a page carries alongside it: what drawing.ts reads off by hand. */
+export function stylesheet(): string {
+  const output = new SVG({ fontCache: 'none' })
+  const document = mathjax.document('', { InputJax: new TeX({ packages: PACKAGES }), OutputJax: output })
+  return adaptor.textContent(output.styleSheet(document) as never)
 }

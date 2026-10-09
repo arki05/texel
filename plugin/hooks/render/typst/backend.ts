@@ -6,7 +6,7 @@ import { hash } from '../hash'
 import { Memo } from '../memo'
 import { pngSize } from '../png'
 import type { TypstBackend, TypstJob } from '../renderer'
-import { isFailure, type Rendered, type RenderFailure } from '../result'
+import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
 import type { Compiler } from './compiler'
 import { program, widthFree, type Program, type TypstStyle } from './program'
 
@@ -38,9 +38,6 @@ export type TypstOptions = {
   cacheDir: string
 }
 
-// An Image covers at most 255 x 255 cells.
-const MAX_CELLS = 255
-
 export function createTypstBackend({ io, compiler, cache, style, cacheDir }: TypstOptions): TypstBackend {
   // A run is known by what makes its output: the compiler, its main file, its inputs.
   const keyOf = ({ source, inputs }: Program) => hash(JSON.stringify([compiler.id, source, inputs]))
@@ -62,10 +59,7 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir }: Typ
     const points = compiler.ppi / 72
     const columns = Math.max(1, Math.round(width / (style.grid.cellWidth * points)))
     const rows = Math.max(1, Math.round(height / (style.grid.cellHeight * points)))
-    if (columns > MAX_CELLS || rows > MAX_CELLS) {
-      return { error: `too large to show: ${columns} x ${rows} cells (an image holds ${MAX_CELLS} x ${MAX_CELLS})` }
-    }
-    return { picture: { file }, columns, rows }
+    return tooLarge(columns, rows) ?? { picture: { file }, columns, rows }
   }
 
   // A block narrower than it was allowed was drawn at its natural size

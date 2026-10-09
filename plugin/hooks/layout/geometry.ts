@@ -18,6 +18,21 @@ export type Ink = { width: number; above: number; below: number }
 /** Where an inline formula is drawn: its box in cells, its scale, and its ink's offset down the box (pt). */
 export type Placement = { columns: number; rows: number; scale: number; dy: number }
 
+/** The most cells a picture covers, each way: an Image's limit. */
+export const MAX_CELLS = 255
+
+/**
+ * The cells a block (display math, a typst figure) takes: its ink, `width` x
+ * `height` points, with a cell's width and half a row to spare, so it never
+ * touches what is around it. texel.typ sizes typst figures by the same rule.
+ */
+export function blockCells(grid: Grid, width: number, height: number) {
+  return {
+    columns: Math.max(1, Math.ceil((width + grid.cellWidth) / grid.cellWidth)),
+    rows: Math.max(1, Math.ceil((height + grid.cellHeight * 0.5) / grid.cellHeight)),
+  }
+}
+
 /**
  * A terminal font's proportions, which are all the layout needs: pictures
  * are stretched to fill their cells, so only ratios matter. `aspect` is the

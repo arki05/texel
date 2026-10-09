@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { Ink } from '../../layout/geometry'
 import type { Rendered, RenderFailure } from '../result'
-import { createMathBackend, MathCache, type MathStyle } from './backend'
+import { createMathBackend, MAX_BYTES, MathCache, type MathStyle } from './backend'
 
 const style: MathStyle = { grid: { cellWidth: 7.727, cellHeight: 17, xHeight: 7.08, baseline: 0.7727 }, color: 'b3bd5a', inlineScale: 1.2, macros: '' }
 const backend = (overrides: Partial<MathStyle> = {}, cache = new MathCache()) => createMathBackend(cache, { ...style, ...overrides })
@@ -32,7 +32,7 @@ describe('MathJax backend', () => {
     const drawn = await backend().picture({ kind: 'inline', tex: 'x', placement: { columns: 2, rows: 1, scale: 1, dy: 5 } })
     expect(drawn).toMatchObject({ columns: 2, rows: 1 })
     const { bytes, width, height } = pixels(drawn)
-    expect([width, height]).toEqual([Math.round(2 * 7.727 * 3), 17 * 3])
+    expect([width, height]).toEqual([Math.floor(2 * 7.727 * 3), 17 * 3])
     const opaque = [...Array(width * height).keys()].find(i => bytes[i * 4 + 3] === 255)!
     expect([...bytes.subarray(opaque * 4, opaque * 4 + 3)]).toEqual([0xb3, 0xbd, 0x5a])
   })
@@ -42,7 +42,28 @@ describe('MathJax backend', () => {
     expect(drawn).toMatchObject({ rows: expect.any(Number), columns: expect.any(Number) })
     const { width, height } = pixels(drawn)
     const { columns, rows } = drawn as Rendered
-    expect([width, height]).toEqual([Math.round(columns * 7.727 * 3), rows * 17 * 3])
+    expect([width, height]).toEqual([Math.floor(columns * 7.727 * 3), rows * 17 * 3])
+  })
+
+  test('a picture too large for an Image at full resolution has fewer pixels, never over the limit', async () => {
+    for (const columns of [60, 97, 128, 181, 255]) {
+      for (const rows of [10, 33, 64, 101, 255]) {
+        const drawn = await backend().picture({ kind: 'inline', tex: 'x', placement: { columns, rows, scale: 1, dy: 0 } })
+        const { width, height } = pixels(drawn)
+        expect(width * height * 4).toBeLessThanOrEqual(MAX_BYTES)
+      }
+    }
+  })
+
+  test('a formula too large to show is refused before it is drawn', async () => {
+    const huge = 'x\\hspace{1000000em}y'
+    expect(await backend().ink(huge)).toMatchObject({ error: expect.stringContaining('too large to show') })
+    expect(await backend().picture({ kind: 'display', tex: huge })).toMatchObject({ error: expect.stringContaining('too large to show') })
+  })
+
+  test("MathJax's own failure is this formula's alone", async () => {
+    const deep = `${'{'.repeat(20000)}x${'}'.repeat(20000)}`
+    expect(await backend().ink(deep)).toEqual({ error: expect.stringContaining('MathJax failed:') })
   })
 
   test('a TeX error, an unknown command among them, is a failure that says why', async () => {

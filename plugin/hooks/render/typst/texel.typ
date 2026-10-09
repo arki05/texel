@@ -19,8 +19,9 @@
 
 // A typst block, `max-columns` the widest it may be: a figure that fits is
 // centred at its own size, at least a cell narrower than allowed (render/
-// typst/backend.ts tells natural size by it); anything wider is laid out at
-// the full width, so its prose wraps.
+// typst/backend.ts tells natural size by it), with a cell's width and half a
+// row to spare, as layout/geometry.ts's blockCells sizes display math;
+// anything wider is laid out at the full width, so its prose wraps.
 #let typst-block(body) = {
   set page(width: auto, height: auto, margin: 0pt, fill: none)
   set text(fill: rgb("#" + input("foreground")), size: size)
