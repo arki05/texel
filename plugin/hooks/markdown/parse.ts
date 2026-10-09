@@ -1,5 +1,6 @@
-// Splits an assistant reply's markdown into what the engine can draw as-is and
-// what texel should turn into pictures. Pure: no `$`, no I/O.
+// Splits a message's markdown (a reply, or the person's prompt) into what the
+// engine can draw as-is and what texel should turn into pictures. Pure: no
+// `$`, no I/O.
 
 /** How a run of text is drawn; `dim` is texel's own, for notes. */
 export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean; dim?: boolean }
@@ -9,6 +10,8 @@ export type Atom = ({ kind: 'text'; text: string } & TextStyle) | { kind: 'math'
 export type InlineLine = {
   /** What leads the line: a list marker, a quote bar, or nothing. */
   prefix: string
+  /** A quote's line, whose bar is drawn dim. */
+  quote?: true
   indent: number
   heading: boolean
   atoms: Atom[]
@@ -104,7 +107,6 @@ function hasInlineMath(paragraph: string) {
   return HAS_INLINE.test(withoutCode)
 }
 
-// Tables and indented code keep the engine's drawing; math in them stays source.
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
 
 // Tables and indented code keep the engine's drawing (their math stays
@@ -117,7 +119,7 @@ function isLayoutable(paragraph: string) {
 }
 
 function paragraphLines(paragraph: string): InlineLine[] {
-  const lines: { prefix: string; indent: number; heading: boolean; text: string }[] = []
+  const lines: { prefix: string; quote?: true; indent: number; heading: boolean; text: string }[] = []
   for (const raw of paragraph.split('\n')) {
     const heading = raw.match(/^#{1,6}\s+(.*)$/)
     const item = raw.match(LIST_ITEM)
@@ -128,7 +130,7 @@ function paragraphLines(paragraph: string): InlineLine[] {
       const [, indent = '', bullet = '', rest = ''] = item
       const marker = /\d/.test(bullet) ? `${bullet} ` : '• '
       lines.push({ prefix: marker, indent: indent.length, heading: false, text: rest })
-    } else if (quote) lines.push({ prefix: '│ ', indent: 0, heading: false, text: quote[1] ?? '' })
+    } else if (quote) lines.push({ prefix: '│ ', quote: true, indent: 0, heading: false, text: quote[1] ?? '' })
     // A heading is one line: what follows it starts its own.
     else if (last && !last.heading && raw.trim()) last.text += ` ${raw.trim()}`
     else if (raw.trim()) lines.push({ prefix: '', indent: 0, heading: false, text: raw.trim() })

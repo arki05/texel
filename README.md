@@ -29,7 +29,7 @@ blocks rendered as images, inline with the text around them. Inspired by
 - **A terminal that shows Claude Code's images**: kitty, Ghostty, or cmux
   (Ghostty-based). Not through tmux. Elsewhere texel steps aside and Claude
   Code's own rendering stays.
-- **Optional: typst 0.15 or newer**, for ```` ```typst ```` blocks
+- **Optional: typst 0.15 or newer** (tested with 0.15), for ```` ```typst ```` blocks
   (`brew install typst`). Without it, LaTeX still renders; a typst block shows
   its source and says what it needs.
 
@@ -71,7 +71,7 @@ All in `/config`, under texel.
 | `promptNote` | on | Tell Claude this terminal typesets math. |
 | `mathColor` | `#b3bd5a` | Colour of LaTeX math; empty follows the text colour. |
 | `typstColor` | empty | Colour of typst blocks' text; empty follows the text colour. |
-| `typstPackages` | on | Let typst blocks import packages (typst downloads them). Off: such a block shows its source. |
+| `typstPackages` | on | Let typst blocks import packages (typst downloads them). Off: such a block shows its source; best effort, as an import whose path is held in a variable is not caught. |
 | `inlineSize` | 1.2 | Inline math's size against the text's x-height. |
 | `inlineMinScale` | 0.75 | How far a formula may shrink before its line gains a row. |
 | `inlineMaxScale` | 1 | How far a formula smaller than its row may grow to fill it. |

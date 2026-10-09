@@ -59,7 +59,8 @@ function choice<T extends string>(options: PluginOptions, name: string, choices:
 }
 
 function font(options: PluginOptions): TerminalFont {
-  const name = choice(options, 'terminalFont', ['JetBrains Mono', ...(Object.keys(FONTS) as FontName[]), CUSTOM_FONT])
+  // The first preset, JetBrains Mono, unless another is named.
+  const name = choice(options, 'terminalFont', [...(Object.keys(FONTS) as FontName[]), CUSTOM_FONT])
   if (name !== CUSTOM_FONT) return FONTS[name]
   const preset = FONTS['JetBrains Mono']
   return {

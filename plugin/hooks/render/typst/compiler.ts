@@ -1,6 +1,5 @@
-// Something that runs texel's typst programs: the typst command line today
-// (cli.ts), a long-lived render server later. The typst backend decides what
-// to run and caches it; a compiler only runs it.
+// Something that runs texel's typst programs: the typst command line (cli.ts).
+// The typst backend decides what to run and caches it; a compiler only runs it.
 
 import type { RenderFailure } from '../result'
 import type { Program } from './program'

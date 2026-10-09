@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { isFailure } from '../result'
+import { accented } from './accents'
 import { CORPUS } from './corpus'
 import { drawingOf, outlinesOf, STYLESHEET } from './drawing'
 import type { Drawing } from './raster'
@@ -127,7 +128,7 @@ describe('what MathJax draws', () => {
   test('every formula in the corpus is drawn, none refused', () => {
     const tex = createTex('')
     for (const source of CORPUS) {
-      const svgOrError = tex.convert(source, true)
+      const svgOrError = tex.convert(accented(source), true)
       expect([source, 'error' in svgOrError ? svgOrError.error : 'ok']).toEqual([source, 'ok'])
       const drawing = drawingOf(svgOrError as SvgNode)
       expect([source, isFailure(drawing) ? drawing.error : 'ok']).toEqual([source, 'ok'])
@@ -137,11 +138,11 @@ describe('what MathJax draws', () => {
   test('accented letters in text are drawn, every accent the fonts have; in math, they name themselves', () => {
     const tex = createTex('')
     for (const text of ['\\text{für Ärger, café, mañana, šček, Žižek, ğ ă}', '\\textbf{né} \\mbox{ñ}']) {
-      const svg = tex.convert(text, false)
+      const svg = tex.convert(accented(text), false)
       expect([text, 'error' in svg ? svg.error : drawingOf(svg)]).toEqual([text, expect.objectContaining({ shapes: expect.any(Array) })])
     }
-    expect(drawingOf(tex.convert('\\text{a $é$}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "é"' })
-    expect(drawingOf(tex.convert('\\mathrm{ä}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "ä"' })
+    expect(drawingOf(tex.convert(accented('\\text{a $é$}'), false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "é"' })
+    expect(drawingOf(tex.convert(accented('\\mathrm{ä}'), false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "ä"' })
   })
 
   test('a character outside MathJax\'s fonts is refused by name', () => {

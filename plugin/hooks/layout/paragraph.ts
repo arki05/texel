@@ -12,8 +12,8 @@ import { cells, wrap, type Line, type Piece } from './wrap'
 /** A rendered inline formula: what a row's box piece carries. */
 export type Formula = { picture: Picture; rows: number; tex: string }
 
-/** A paragraph line laid out: its marker, its indent, the hang of its later rows, and the rows. */
-export type LaidLine = { prefix: string; indent: number; hang: number; rows: Line<Formula>[] }
+/** A paragraph line laid out: its marker (a quote's, dim), its indent, the hang of its later rows, and the rows. */
+export type LaidLine = { prefix: string; quote?: true; indent: number; hang: number; rows: Line<Formula>[] }
 
 export type ParagraphOptions = { grid: Grid; fit: FitOptions; columns: number }
 
@@ -63,7 +63,7 @@ export function layoutParagraph(math: MathBackend, lines: InlineLine[], options:
           atom.kind === 'math' ? formula(math, atom.tex, options, width, sideOf(line.atoms[i - 1], line.atoms[i + 1])) : [atom],
         ),
       )
-      return { prefix: line.prefix, indent: line.indent, hang, rows: wrap(pieces.flat(), width) }
+      return { prefix: line.prefix, quote: line.quote, indent: line.indent, hang, rows: wrap(pieces.flat(), width) }
     }),
   )
 }

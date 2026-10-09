@@ -5,6 +5,7 @@ import type { RenderElement } from 'claude-code'
 
 import { formulaSource, layoutParagraph, type Formula, type LaidLine } from '../layout/paragraph'
 import type { Line } from '../layout/wrap'
+import { CODE } from '../look'
 import type { InlineLine } from '../markdown/parse'
 import { image, type ViewContext } from './parts'
 
@@ -17,7 +18,7 @@ function drawWrapped(ctx: ViewContext, row: Line<Formula>, lead: RenderElement[]
     ...row.pieces.map(piece =>
       piece.kind === 'text' ? (
         <Box marginTop={row.above}>
-          <Text bold={piece.bold} italic={piece.italic} dimColor={piece.dim} color={piece.code ? 'permission' : undefined}>
+          <Text bold={piece.bold} italic={piece.italic} dimColor={piece.dim} color={piece.code ? CODE : undefined}>
             {piece.text}
           </Text>
         </Box>
@@ -41,7 +42,7 @@ function drawLine(ctx: ViewContext, line: LaidLine): RenderElement {
           i === 0 && line.prefix
             ? [
                 <Box marginTop={row.above}>
-                  <Text dimColor={line.prefix === '│ '}>{line.prefix}</Text>
+                  <Text dimColor={line.quote}>{line.prefix}</Text>
                 </Box>,
               ]
             : []

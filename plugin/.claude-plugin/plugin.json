@@ -32,7 +32,7 @@
     "typstPackages": {
       "type": "boolean",
       "title": "Typst blocks may import packages",
-      "description": "A typst block importing a package (@preview/...) makes typst download it from the typst registry. Off: such a block shows its source.",
+      "description": "A typst block importing a package (@preview/...) makes typst download it from the typst registry. Off: such a block shows its source (best effort: an import whose path is held in a variable is not caught).",
       "default": true
     },
     "inlineSize": {

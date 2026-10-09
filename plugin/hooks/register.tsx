@@ -8,6 +8,7 @@ import { atom, read, update, type EngineInterface, type Register, type RenderInp
 
 import { cacheDir, drawsPictures, pruneCommand, themeFrom, typstFrom, type Machine, type TypstStatus } from './host'
 import { gridFor } from './geometry'
+import { GUTTER, PROMPT_BACKGROUND, TEXT, type Theme } from './look'
 import { needsRender, parse } from './markdown/parse'
 import { PROMPT_SECTION, promptNote } from './prompt'
 import { hash } from './render/hash'
@@ -25,13 +26,6 @@ import type { ViewContext } from './view/parts'
 const LIB = 'hooks/render/typst'
 // Personal LaTeX macros (`\newcommand`s), led into every formula; the model never sees them.
 const MACROS = '.config/texel/macros.tex'
-// Claude Code's own prompt-row background, and the text colour, per theme.
-const PROMPT_BACKGROUND = { dark: 'rgb(55, 55, 55)', light: 'rgb(240, 240, 240)' }
-const TEXT = { dark: 'e6e6e6', light: '1f1f1f' }
-// The engine's gutter beside a reply (`⏺ `), and a column to spare.
-const GUTTER = 4
-
-type Theme = 'dark' | 'light'
 
 /** What texel learns once per load: the machine, its typst, and texel.typ's fingerprint. */
 type Host = { machine: Machine; typst: TypstStatus; systemIsDark: boolean; library: string }
@@ -102,7 +96,7 @@ function themeOf($: EngineInterface, known: Host): Promise<Theme> {
 function files($: EngineInterface): Io {
   return {
     exists: path => $.fs.exists(path),
-    readBase64: async path => ((await $.fs.read(path, { as: 'bytes' })) as { base64: string }).base64,
+    readBase64: async path => (await $.fs.read(path, { as: 'bytes' })).base64,
     rename: async (from, to) => void (await $.process.run(['mv', '-f', from, to])),
   }
 }

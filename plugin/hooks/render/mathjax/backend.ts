@@ -8,6 +8,7 @@ import { toBase64 } from '../base64'
 import { encodePng } from '../png'
 import type { LatexJob, MathBackend } from '../renderer'
 import { isFailure, tooLarge, type Rendered, type RenderFailure } from '../result'
+import { accented } from './accents'
 import { drawingOf } from './drawing'
 import { rasterize, type Box, type Raster } from './raster'
 import { createTex, type Tex } from './vendor/mathjax-entry.js'
@@ -35,7 +36,7 @@ export class MathCache {
   /** The TeX that knows `macros`. */
   tex(macros: string): Tex {
     if (this.current?.macros !== macros) {
-      this.current = { macros, tex: createTex(macros) }
+      this.current = { macros, tex: createTex(accented(macros)) }
       this.results.clear()
     }
     return this.current.tex
@@ -104,7 +105,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
   // cannot be. One whose viewBox is already beyond a picture is refused
   // before a pixel is made.
   function inked(source: string, display: boolean, scale: number): Inked | RenderFailure {
-    const svg = tex.convert(source, display)
+    const svg = tex.convert(accented(source), display)
     if ('error' in svg) return svg
     const drawing = drawingOf(svg)
     if (isFailure(drawing)) return drawing

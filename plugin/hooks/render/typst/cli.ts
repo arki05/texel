@@ -15,8 +15,9 @@ export type CliOptions = {
   limiter: Limiter
   /** The folder holding texel.typ. */
   lib: string
-  /** `typst --version`'s version, and a hash of texel.typ: what makes the output. */
+  /** `typst --version`'s version: part of what makes the output. */
   version: string
+  /** A hash of texel.typ: the rest of what makes it. */
   library: string
 }
 

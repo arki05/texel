@@ -2,6 +2,8 @@
 // gathers: where the cache lives, whether the terminal shows images, which
 // typst is installed, which theme applies. Pure: facts in, decisions out.
 
+import type { Theme } from './look'
+
 /** The facts the hooks module reads once per load. */
 export type Machine = {
   home: string
@@ -58,7 +60,7 @@ export function typstFrom(stdout: string | undefined): TypstStatus {
 }
 
 /** Claude Code's `theme` setting (`dark`, `light-ansi`, `auto`, ...); `auto` follows the system. */
-export function themeFrom(setting: unknown, systemIsDark: boolean): 'dark' | 'light' {
+export function themeFrom(setting: unknown, systemIsDark: boolean): Theme {
   const value = String(setting ?? '')
   if (value.startsWith('light')) return 'light'
   if (value.startsWith('dark')) return 'dark'

@@ -1,8 +1,8 @@
 // Runs both backends for real, with the inputs texel produces: MathJax on
-// LaTeX (inline, display, an error), its drawing and rasteriser against resvg
-// as a reference over a corpus of formulas, and the typst command line on typst blocks (a figure, prose, an
-// error). `claude plugin test` runs no processes,
-// so this is where typst and texel.typ meet. Exits non-zero on any failure.
+// LaTeX (inline, display, an error), its drawing and rasteriser against
+// resvg as a reference over a corpus of formulas, and the typst command line
+// on typst blocks. `claude plugin test` runs no processes, so this is where
+// typst and texel.typ meet. Exits non-zero on any failure.
 //
 //   npm run smoke
 
@@ -18,11 +18,13 @@ import { FONTS, gridFor, type Ink } from '../plugin/hooks/geometry.ts'
 import { hash } from '../plugin/hooks/render/hash.ts'
 import { Limiter } from '../plugin/hooks/render/typst/limit.ts'
 import { createMathBackend, MathCache } from '../plugin/hooks/render/mathjax/backend.ts'
+import { accented } from '../plugin/hooks/render/mathjax/accents.ts'
 import { CORPUS } from '../plugin/hooks/render/mathjax/corpus.ts'
 import { drawingOf } from '../plugin/hooks/render/mathjax/drawing.ts'
 import { rasterize } from '../plugin/hooks/render/mathjax/raster.ts'
 import { createTex, stylesheet, type SvgNode } from '../plugin/hooks/render/mathjax/vendor/mathjax-entry.js'
 import { isFailure } from '../plugin/hooks/render/result.ts'
+import { readSettings } from '../plugin/hooks/settings.ts'
 import { createTypstBackend, TypstCache } from '../plugin/hooks/render/typst/backend.ts'
 import { cliCompiler } from '../plugin/hooks/render/typst/cli.ts'
 
@@ -67,7 +69,7 @@ const tex = createTex('')
 const css = stylesheet()
 for (const source of CORPUS) {
   for (const pxPerEm of [57, 20]) {
-    const svg = tex.convert(source, true) as SvgNode
+    const svg = tex.convert(accented(source), true) as SvgNode
     const drawing = drawingOf(svg)
     const ours = isFailure(drawing) ? drawing : rasterize(drawing, pxPerEm, [0, 0, 0])
     const name = `raster vs resvg ${pxPerEm}px ${source}`.slice(0, 42).padEnd(42)
@@ -102,6 +104,17 @@ for (const source of CORPUS) {
   }
 }
 
+// The manifest's defaults, which Claude Code fills in, read as the code's own
+// fallbacks for a value left unset; colours differ by design (unset follows
+// the text).
+const manifest = JSON.parse(readFileSync(new URL('../plugin/.claude-plugin/plugin.json', import.meta.url), 'utf8'))
+const defaults = Object.fromEntries(Object.entries(manifest.userConfig as Record<string, { default?: unknown }>).map(([key, option]) => [key, option.default]))
+const uncoloured = (options: Record<string, unknown>) => ({ ...readSettings(options as never), mathColor: undefined, typstColor: undefined })
+const [fromManifest, fromCode] = [uncoloured(defaults), uncoloured({})]
+const agree = JSON.stringify(fromManifest) === JSON.stringify(fromCode)
+if (!agree) failures++
+console.log(`${agree ? 'ok  ' : 'FAIL'} ${'manifest defaults are the code\'s'.padEnd(42)} ${agree ? '' : JSON.stringify({ fromManifest, fromCode })}`)
+
 // Typst blocks, through the typst command line.
 const version = /typst (\S+)/.exec(spawnSync('typst', ['--version'], { encoding: 'utf8' }).stdout ?? '')?.[1]
 if (!version) {
@@ -135,7 +148,7 @@ if (!version) {
   // Content that stretches to its width (a 1fr column) measures tall without one: it must not come out tall.
   const stretchy = await typst.fresh({ kind: 'typst', typst: '#table(columns: (auto, 1fr), [Area], [A finding long enough to wrap if its column had no width], [Parser], [fixed])', maxColumns: 120 })
   check('typst stretchy table is sized at its width', isFailure(stretchy) || stretchy.rows > 4 ? { error: `rows ${'rows' in stretchy ? stretchy.rows : '?'}` } : stretchy)
-    check('typst syntax error is reported', await typst.fresh({ kind: 'typst', typst: '#let x = (', maxColumns: 40 }), true)
+  check('typst syntax error is reported', await typst.fresh({ kind: 'typst', typst: '#let x = (', maxColumns: 40 }), true)
 }
 
 console.log(failures ? `\n${failures} failed` : '\nboth backends work')
