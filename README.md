@@ -1,14 +1,11 @@
 # texel
 
+### Built by Claude, for Claude.
+
 Typeset math in Claude Code's terminal. texel is a Claude Code plugin that
 redraws Claude's replies, and your own prompts, with LaTeX math and typst
-blocks rendered as images, inline with the text around them.
-
-> **Built by Claude, for Claude.** Someone said "let's have
-> [pi-math](https://github.com/Fadouse/pi-math) for Claude Code, as a mod",
-> and Claude wrote it, in Claude Code: the plugin, the rasteriser, the tests
-> and this README. It seemed only fitting. Claude had spent long enough
-> writing `\frac{\partial u}{\partial t}` into terminals that could not show it.
+blocks rendered as images, inline with the text around them. Inspired by
+[pi-math](https://github.com/Fadouse/pi-math).
 
 ![Claude explaining the Gaussian integral, Euler's identity and a rotation matrix, with the formulas, a commutative diagram and a table typeset in the terminal](docs/screenshot.png)
 
