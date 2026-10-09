@@ -24,6 +24,7 @@ describe('layoutMessage', () => {
       waiting: undefined,
       broken: { error: 'error: unknown variable' },
       off: { error: 'needs typst 0.15 or newer', skipped: true },
+      empty: { error: 'error: panicked with: "the block draws nothing"\n  ┌─ texel.typ' },
     }
     const laid = await layoutMessage(renderers(async body => answers[body]), Object.keys(answers).map(block), options)
     expect(laid.map(part => (part.kind === 'source' ? part.note ?? 'source' : part.kind))).toEqual([
@@ -31,6 +32,7 @@ describe('layoutMessage', () => {
       'source',
       'render failed: unknown variable',
       'not rendered: needs typst 0.15 or newer',
+      'render failed: the block draws nothing',
     ])
   })
 

@@ -38,9 +38,14 @@ export function showsImages({ env }: Machine) {
   return env.TERM === 'xterm-kitty' || Boolean(env.KITTY_WINDOW_ID) || env.TERM_PROGRAM === 'ghostty'
 }
 
-/** Whether texel draws pictures: as the `images` setting says, `auto` where the terminal shows them. */
-export function drawsPictures(images: Settings['images'], machine: Machine) {
-  return images === 'always' || (images === 'auto' && showsImages(machine))
+/**
+ * Why texel draws no pictures here, if it does not: the `images` setting
+ * says never, or, on `auto`, the terminal shows none.
+ */
+export function whyNoPictures(images: Settings['images'], machine: Machine): string | undefined {
+  if (images === 'never') return 'images is set to never in /config'
+  if (images === 'always' || showsImages(machine)) return undefined
+  return machine.env.TMUX ? 'pictures do not pass through tmux' : 'this terminal shows no pictures (texel needs kitty or Ghostty)'
 }
 
 /** The oldest typst texel works with: texel.typ and the command line it runs are checked against 0.15. */

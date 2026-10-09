@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { cacheDir, drawsPictures, showsImages, themeFrom, typstFrom, type Machine } from './host'
+import { cacheDir, showsImages, themeFrom, typstFrom, whyNoPictures, type Machine } from './host'
 
 const mac: Machine = { home: '/Users/a', os: 'Darwin', env: {} }
 const linux: Machine = { home: '/home/a', os: 'Linux', env: {} }
@@ -19,11 +19,14 @@ describe('host', () => {
     expect(showsImages({ ...mac, env: { TERM_PROGRAM: 'ghostty', TMUX: '/tmp/tmux-1/default' } })).toBe(false)
   })
 
-  test('pictures: always, never, or where the terminal shows them', () => {
+  test('pictures: always, never, or where the terminal shows them; when not, why', () => {
     const iterm = { ...mac, env: { TERM_PROGRAM: 'iTerm.app' } }
     const ghostty = { ...mac, env: { TERM_PROGRAM: 'ghostty' } }
-    expect([drawsPictures('auto', ghostty), drawsPictures('auto', iterm)]).toEqual([true, false])
-    expect([drawsPictures('always', iterm), drawsPictures('never', ghostty)]).toEqual([true, false])
+    const tmux = { ...mac, env: { TERM_PROGRAM: 'ghostty', TMUX: '/tmp/tmux-501/default' } }
+    expect([whyNoPictures('auto', ghostty), whyNoPictures('always', iterm)]).toEqual([undefined, undefined])
+    expect(whyNoPictures('auto', iterm)).toContain('kitty or Ghostty')
+    expect(whyNoPictures('auto', tmux)).toContain('tmux')
+    expect(whyNoPictures('never', ghostty)).toContain('never')
   })
 
   test('typst: found and recent, found and old, or missing', () => {

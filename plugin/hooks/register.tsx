@@ -6,7 +6,7 @@
 
 import { atom, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
 
-import { cacheDir, drawsPictures, pruneCommand, themeFrom, typstFrom, type Machine, type TypstStatus } from './host'
+import { cacheDir, pruneCommand, themeFrom, typstFrom, whyNoPictures, type Machine, type TypstStatus } from './host'
 import { gridFor } from './geometry'
 import { GUTTER, PROMPT_BACKGROUND, TEXT, type Theme } from './look'
 import { needsRender, parse } from './markdown/parse'
@@ -135,7 +135,7 @@ async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'Use
   if (!needsRender(segments)) return undefined
   if (await read($, showingSource)) return undefined
   const known = await hostOf($)
-  if (!drawsPictures(settings.images, known.machine)) return undefined
+  if (whyNoPictures(settings.images, known.machine)) return undefined
 
   const current = await themeOf($, known)
   const grid = gridFor(settings.font)
@@ -150,8 +150,9 @@ async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'Use
 // What `/texel` reports: what texel draws with here.
 function status(settings: Settings, known: Host, sources: boolean) {
   const { typst } = known
+  const why = whyNoPictures(settings.images, known.machine)
   return [
-    drawsPictures(settings.images, known.machine) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
+    why ? `not drawing here: ${why}` : 'drawing pictures in this terminal',
     '  LaTeX math: MathJax, built in',
     `  typst blocks: ${'version' in typst ? `typst ${typst.version}${settings.typstPackages ? '' : ', packages off'}` : `off, ${typst.unavailable}`}`,
     `  showing: ${sources ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
@@ -177,7 +178,7 @@ export const register: Register = (on, options) => {
     const composed = await next(e)
     if (!settings.promptNote || !e.surfaces.includes('terminal')) return composed
     const known = await hostOf($)
-    if (!drawsPictures(settings.images, known.machine)) return composed
+    if (whyNoPictures(settings.images, known.machine)) return composed
     const typst = 'version' in known.typst
     const note = noteText({ typst, packages: settings.typstPackages, theme: await themeOf($, known) })
     const section = { id: PROMPT_SECTION, text: note, scope: 'session' as const }
@@ -191,6 +192,8 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'texel' }, async ($, e) => {
     if (e.args.trim().toLowerCase() === 'source') {
+      const why = whyNoPictures(settings.images, (await hostOf($)).machine)
+      if (why) return { text: `nothing to switch: texel is not drawing here (${why}), so every message shows as Claude Code draws it` }
       const sources = await update($, showingSource, shown => !shown)
       $.ui.status(sources ? 'texel: showing sources' : undefined)
       return { text: sources ? 'showing sources; /texel source renders again' : 'rendering again' }

@@ -279,6 +279,12 @@ test('/texel source shows every message as its source, and again renders', { tim
   expect(images(await (await show($, 'so \\(x\\) here')).drawn())).toHaveLength(1)
 })
 
+test('/texel source where texel does not draw says why, and switches nothing', { timeoutMs: 15000 }, async ($, on) => {
+  world(on, { machine: { ...GHOSTTY, tmux: '/tmp/tmux-501/default' } })
+  expect((await texel($, 'source')).text).toContain('nothing to switch: texel is not drawing here (pictures do not pass through tmux)')
+  expect((await texel($)).text).toContain('not drawing here: pictures do not pass through tmux')
+})
+
 test('/texel says what texel draws with', { timeoutMs: 15000 }, async ($, on) => {
   world(on, { machine: { terminal: 'ghostty' } })
   const { text } = await texel($)

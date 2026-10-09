@@ -32,8 +32,11 @@ export function verdict(failure: RenderFailure) {
   return `${failure.skipped ? 'not rendered' : 'render failed'}: ${reason(failure)}`
 }
 
-/** A failure's first line, without typst's `error:`, cut to `max` characters. */
+/** A failure's first line, without typst's `error:` or `panicked with:` wrapping, cut to `max` characters. */
 export function reason(failure: RenderFailure, max = 200) {
-  const line = failure.error.split('\n')[0]!.replace(/^error:\s*/, '')
+  const line = failure.error
+    .split('\n')[0]!
+    .replace(/^error:\s*/, '')
+    .replace(/^panicked with: "(.*)"$/, '$1')
   return line.length > max ? `${line.slice(0, max - 1)}…` : line
 }
