@@ -95,8 +95,8 @@ All in `/config`, under texel.
 - **No equation numbers.** `\tag` and numbered environments show their
   source.
 - **Not through tmux**, which does not pass the pictures through.
-- **Very wide inline formulas** (ones that would have to shrink below half
-  size to fit the line) show their source.
+- **Formulas too wide for the line or the transcript** shrink to fit, and
+  ones that would have to go below half their size show their source.
 
 ## How it works
 
