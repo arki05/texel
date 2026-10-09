@@ -10,7 +10,7 @@ import type { BlockRenderer, InlineRenderer } from '../renderer'
 import { isFailure, TOO_WIDE, tooLarge, type Rendered, type RenderFailure } from '../result'
 import { accented } from './accents'
 import { drawingOf } from './drawing'
-import { rasterize, type Box, type Raster } from './raster'
+import { rasterize, type Box, type Drawing, type Raster } from './raster'
 import { createTex, type Tex } from './vendor/mathjax-entry.js'
 
 /** How LaTeX is set: on which grid, in what colour (six hex digits), at what inline size, with which macros. */
@@ -24,44 +24,60 @@ type Result = Ink | Rendered | RenderFailure
 /** LaTeX inline, and on its own as a block: both answered at once. */
 export type MathBackend = InlineRenderer & { block: BlockRenderer }
 
+/** A map that lets the least recently used entry go past `max` entries. */
+class Lru<V> {
+  private readonly entries = new Map<string, V>()
+
+  constructor(private readonly max: number) {}
+
+  get(key: string): V | undefined {
+    const value = this.entries.get(key)
+    if (value === undefined) return undefined
+    // Used again: last to go.
+    this.entries.delete(key)
+    this.entries.set(key, value)
+    return value
+  }
+
+  set(key: string, value: V) {
+    this.entries.set(key, value)
+    if (this.entries.size > this.max) this.entries.delete(this.entries.keys().next().value!)
+  }
+
+  clear() {
+    this.entries.clear()
+  }
+
+  get size() {
+    return this.entries.size
+  }
+}
+
 /**
  * What MathJax keeps between draws, for as long as the module is loaded: the
- * TeX for the macros in use, and what it has made, the least recently used
- * let go past `maxResults`. New macros start it afresh, as everything made
+ * TeX for the macros in use; each formula's drawing, which holds for any
+ * size and colour, so measuring and drawing it convert it once; and the
+ * results made from them. New macros start it afresh, as everything made
  * with the old ones is stale.
  */
 export class MathCache {
   private current: { macros: string; tex: Tex } | undefined
-  private readonly results = new Map<string, Result>()
+  readonly drawings: Lru<Drawing | RenderFailure>
+  readonly results: Lru<Result>
 
-  constructor(private readonly maxResults = 1000) {}
+  constructor(maxResults = 1000) {
+    this.drawings = new Lru(maxResults)
+    this.results = new Lru(maxResults)
+  }
 
   /** The TeX that knows `macros`. */
   tex(macros: string): Tex {
     if (this.current?.macros !== macros) {
       this.current = { macros, tex: createTex(accented(macros)) }
+      this.drawings.clear()
       this.results.clear()
     }
     return this.current.tex
-  }
-
-  get(key: string): Result | undefined {
-    const result = this.results.get(key)
-    if (result === undefined) return undefined
-    // Used again: last to go.
-    this.results.delete(key)
-    this.results.set(key, result)
-    return result
-  }
-
-  set(key: string, result: Result) {
-    this.results.set(key, result)
-    if (this.results.size > this.maxResults) this.results.delete(this.results.keys().next().value!)
-  }
-
-  /** How many results it holds. */
-  get size() {
-    return this.results.size
   }
 }
 
@@ -97,20 +113,29 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
 
   function remembered<T extends Result>(key: unknown, make: () => T | RenderFailure): T | RenderFailure {
     const id = `${JSON.stringify(key)} ${styleKey}`
-    const known = cache.get(id) as T | RenderFailure | undefined
+    const known = cache.results.get(id) as T | RenderFailure | undefined
     if (known) return known
     const made = make()
-    cache.set(id, made)
+    cache.results.set(id, made)
     return made
+  }
+
+  // The formula as MathJax draws it, converted once whatever its size and colour.
+  function drawingFor(source: string, display: boolean): Drawing | RenderFailure {
+    const key = `${display ? 'display' : 'inline'} ${source}`
+    const known = cache.drawings.get(key)
+    if (known) return known
+    const svg = tex.convert(accented(source), display)
+    const drawing = 'error' in svg ? svg : drawingOf(svg)
+    cache.drawings.set(key, drawing)
+    return drawing
   }
 
   // The formula filled at `scale` (1: its x-height the text's), or why it
   // cannot be. One whose viewBox is already beyond a picture is refused
   // before a pixel is made.
   function inked(source: string, display: boolean, scale: number): Inked | RenderFailure {
-    const svg = tex.convert(accented(source), display)
-    if ('error' in svg) return svg
-    const drawing = drawingOf(svg)
+    const drawing = drawingFor(source, display)
     if (isFailure(drawing)) return drawing
     const { left, top, right, bottom } = drawing.viewBox
     const points = em(scale) / 1000

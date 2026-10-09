@@ -113,12 +113,20 @@ describe('MathJax backend', () => {
     const draw = (tex: string) => math.block(tex, 120)
     const first = await draw('a')
     for (const tex of ['b', 'c', 'd', 'e', 'f', 'g', 'h']) await draw(tex)
-    expect(cache.size).toBeLessThan(8)
+    expect(cache.results.size).toBeLessThan(8)
     expect(await draw('a')).not.toBe(first)
     const again = await draw('h')
     expect(await draw('h')).toBe(again)
     backend({ macros: '\\newcommand{\\x}{y}' }, cache)
-    expect(cache.size).toBe(0)
+    expect(cache.results.size).toBe(0)
+  })
+
+  test('a formula is converted once, measured or drawn, at any size or colour', async () => {
+    const cache = new MathCache()
+    await backend({}, cache).ink('\\sqrt{2}')
+    await backend({}, cache).picture('\\sqrt{2}', { columns: 2, rows: 1, scale: 0.8, dy: 2 })
+    await backend({ color: 'ffffff' }, cache).ink('\\sqrt{2}')
+    expect(cache.drawings.size).toBe(1)
   })
 
   test('a picture is made once per formula, style and box', async () => {
