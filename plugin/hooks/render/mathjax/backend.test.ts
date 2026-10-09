@@ -1,17 +1,18 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { Ink } from '../../layout/geometry'
+import { decodePng } from '../png'
 import type { Rendered, RenderFailure } from '../result'
-import { createMathBackend, MAX_BYTES, MathCache, type MathStyle } from './backend'
+import { createMathBackend, MathCache, type MathStyle } from './backend'
 
 const style: MathStyle = { grid: { cellWidth: 7.727, cellHeight: 17, xHeight: 7.08, baseline: 0.7727 }, color: 'b3bd5a', inlineScale: 1.2, macros: '' }
 const backend = (overrides: Partial<MathStyle> = {}, cache = new MathCache()) => createMathBackend(cache, { ...style, ...overrides })
 
 // The RGBA bytes of a rendered picture.
 function pixels(drawn: Rendered | RenderFailure) {
-  if ('error' in drawn || 'file' in drawn.picture) throw new Error('expected pixels')
-  const { rgba, width, height } = drawn.picture
-  return { bytes: Uint8Array.from(atob(rgba), c => c.charCodeAt(0)), width, height }
+  if ('error' in drawn || 'file' in drawn.picture) throw new Error('expected a PNG')
+  const { rgba, width, height } = decodePng(Uint8Array.from(atob(drawn.picture.png), c => c.charCodeAt(0)))
+  return { bytes: rgba, width, height }
 }
 
 describe('MathJax backend', () => {
@@ -32,7 +33,7 @@ describe('MathJax backend', () => {
     const drawn = await backend().picture({ kind: 'inline', tex: 'x', placement: { columns: 2, rows: 1, scale: 1, dy: 5 } })
     expect(drawn).toMatchObject({ columns: 2, rows: 1 })
     const { bytes, width, height } = pixels(drawn)
-    expect([width, height]).toEqual([Math.floor(2 * 7.727 * 3), 17 * 3])
+    expect([width, height]).toEqual([Math.round(2 * 7.727 * 3), 17 * 3])
     const opaque = [...Array(width * height).keys()].find(i => bytes[i * 4 + 3] === 255)!
     expect([...bytes.subarray(opaque * 4, opaque * 4 + 3)]).toEqual([0xb3, 0xbd, 0x5a])
   })
@@ -42,17 +43,14 @@ describe('MathJax backend', () => {
     expect(drawn).toMatchObject({ rows: expect.any(Number), columns: expect.any(Number) })
     const { width, height } = pixels(drawn)
     const { columns, rows } = drawn as Rendered
-    expect([width, height]).toEqual([Math.floor(columns * 7.727 * 3), rows * 17 * 3])
+    expect([width, height]).toEqual([Math.round(columns * 7.727 * 3), rows * 17 * 3])
   })
 
-  test('a picture too large for an Image at full resolution has fewer pixels, never over the limit', async () => {
-    for (const columns of [60, 97, 128, 181, 255]) {
-      for (const rows of [10, 33, 64, 101, 255]) {
-        const drawn = await backend().picture({ kind: 'inline', tex: 'x', placement: { columns, rows, scale: 1, dy: 0 } })
-        const { width, height } = pixels(drawn)
-        expect(width * height * 4).toBeLessThanOrEqual(MAX_BYTES)
-      }
-    }
+  test('a picture is a PNG, small: a display formula is a few kilobytes, not its raw pixels', async () => {
+    const drawn = await backend().picture({ kind: 'display', tex: '\\begin{pmatrix} \\cos\\theta & -\\sin\\theta \\\\ \\sin\\theta & \\cos\\theta \\end{pmatrix}' })
+    const { width, height } = pixels(drawn)
+    const { png } = (drawn as Rendered).picture as { png: string }
+    expect(png.length).toBeLessThan((width * height * 4) / 10)
   })
 
   test('a formula too large to show is refused before it is drawn', async () => {
@@ -89,7 +87,7 @@ describe('MathJax backend', () => {
   })
 
   test('the cache lets the least recently used go past its size, and starts afresh for new macros', async () => {
-    const cache = new MathCache(200_000)
+    const cache = new MathCache(3)
     const math = backend({}, cache)
     const draw = (tex: string) => math.picture({ kind: 'display', tex })
     const first = await draw('a')

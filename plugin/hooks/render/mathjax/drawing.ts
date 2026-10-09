@@ -4,17 +4,17 @@
 //
 // - <path>, <rect> and <polygon> filled; <line>, and a <rect> with
 //   fill="none", stroked, the stroke made an outline here (butt ends, mitred
-//   corners; round ends where dotted);
+//   corners);
 // - transforms: translate, scale, matrix and rotate;
 // - a nested <svg> (a stretched delimiter's middle) placed at its x, y and
 //   clipped to its box;
-// - MathJax's stylesheet, which draws a table's rules and frame: STYLESHEET
-//   below, held to MathJax's own by drawing.test.ts.
+// - MathJax's stylesheet, which draws a table's rules and frame, solid or
+//   dashed: STYLESHEET below, held to MathJax's own by drawing.test.ts.
 //
-// A formula has one colour, so a \colorbox's background is left out. Anything
-// else (a <text> for a character MathJax's fonts lack, an element, attribute
-// or transform not above) fails the drawing, so the formula shows its source
-// rather than a wrong picture.
+// A formula has one colour, so a \colorbox's background is left out. An
+// element or transform not above (a <text> for a character MathJax's fonts
+// lack, say) fails the drawing, so the formula shows its source rather than
+// a wrong picture.
 
 import type { RenderFailure } from '../result'
 import type { Box, Drawing, Outline, Point, Shape } from './raster'
@@ -29,15 +29,14 @@ export const STYLESHEET = {
   root: { selector: 'mjx-container[jax="SVG"] > svg', overflow: 'visible' },
   /** A table's rules and frame are strokes 70 wide, unfilled. */
   rules: { selectors: ['g[data-mml-node="mtable"] > line[data-line]', 'g[data-mml-node="mtable"] > rect[data-frame]'], strokeWidth: 70 },
-  /** Dashed and dotted ones, by class. */
-  dashed: { selector: 'g[data-mml-node="mtable"] > .mjx-dashed', dashes: [140], round: false },
-  dotted: { selector: 'g[data-mml-node="mtable"] > .mjx-dotted', dashes: [0, 140], round: true },
+  /** Dashed ones, by class: TeX's `:` and \hdashline. (Dotted ones TeX cannot ask for.) */
+  dashed: { selector: 'g[data-mml-node="mtable"] > .mjx-dashed', dashes: [140] },
   /** An <svg> in a table's row is not clipped. */
   unclipped: { selector: 'g[data-mml-node="mtable"] > g > svg', overflow: 'visible' },
 } as const
 
 type Matrix = readonly [number, number, number, number, number, number]
-type Dash = { dashes: readonly number[]; round: boolean }
+type Dash = { dashes: readonly number[] }
 /** What an element inherits from its parents. */
 type Context = { matrix: Matrix; clip: Box | undefined; fill: boolean; stroke: boolean; strokeWidth: number }
 
@@ -58,31 +57,11 @@ export function drawingOf(svg: SvgNode): Drawing | RenderFailure {
   }
 }
 
-// SVG's attributes that change what is drawn. One an element has that this
-// file does not read for it fails the drawing. Any other is MathJax's own
-// (data-*, a MathML attribute it copies over) or changes nothing drawn, and
-// is passed over, as a browser does.
-const DRAWING = /^(?:transform|style|fill|fill-rule|fill-opacity|stroke(?:-[a-z]+)?|opacity|display|visibility|overflow|clip|clip-path|clip-rule|mask|filter|marker(?:-[a-z]+)?|x|y|width|height|rx|ry|cx|cy|r|x1|y1|x2|y2|points|d|viewBox|preserveAspectRatio|href|xlink:href|pathLength)$/
-const PAINT = ['transform', 'fill', 'stroke', 'stroke-width', 'style']
-const ATTRIBUTES: Record<string, string[]> = {
-  g: PAINT,
-  svg: [...PAINT, 'x', 'y', 'width', 'height', 'viewBox', 'preserveAspectRatio'],
-  path: [...PAINT, 'd'],
-  rect: [...PAINT, 'x', 'y', 'width', 'height'],
-  polygon: [...PAINT, 'points'],
-  line: [...PAINT, 'x1', 'y1', 'x2', 'y2'],
-}
+const ELEMENTS = new Set(['g', 'svg', 'path', 'rect', 'polygon', 'line'])
 
 function walk(node: SvgNode, parent: SvgNode, grandparent: SvgNode | undefined, outer: Context, shapes: Shape[]) {
   if (node.tag === 'text') throw new Unsupported(`MathJax's fonts have no ${JSON.stringify(node.text ?? '')}`)
-  const allowed = ATTRIBUTES[node.tag]
-  if (!allowed) throw new Unsupported(`MathJax drew a <${node.tag}>, which texel does not draw`)
-  for (const name of Object.keys(node.attrs)) {
-    // MathJax writes `stroke-thickness`, which SVG does not have; a table rule's
-    // dashes are its stylesheet's, whatever the attribute says.
-    const overridden = name === 'stroke-thickness' || (name === 'stroke-dasharray' && dashOf(node, parent))
-    if (DRAWING.test(name) && !allowed.includes(name) && !overridden) throw new Unsupported(`MathJax drew a <${node.tag}> with ${name}, which texel does not draw`)
-  }
+  if (!ELEMENTS.has(node.tag)) throw new Unsupported(`MathJax drew a <${node.tag}>, which texel does not draw`)
 
   const here = paint(node, parent, outer)
   const { matrix } = here
@@ -122,7 +101,6 @@ function walk(node: SvgNode, parent: SvgNode, grandparent: SvgNode | undefined, 
     const [x1, y1, x2, y2] = ['x1', 'y1', 'x2', 'y2'].map(k => number(node, k, 0)) as [number, number, number, number]
     if (stroked) outlines.push(...stroke([x1, y1], [x2, y2], here.strokeWidth, dash).outlines)
   }
-  if (node.children.length) throw new Unsupported(`MathJax drew a <${node.tag}> with children, which texel does not draw`)
   if (outlines.length) shapes.push({ outlines: outlines.map(o => mapped(matrix, o)), clip: here.clip })
 }
 
@@ -150,27 +128,16 @@ const isRule = (node: SvgNode, parent: SvgNode) =>
 function dashOf(node: SvgNode, parent: SvgNode): Dash | undefined {
   if (parent.attrs['data-mml-node'] !== 'mtable') return undefined
   const classes = (node.attrs.class ?? '').split(/\s+/)
-  if (classes.includes('mjx-dashed')) return STYLESHEET.dashed
-  if (classes.includes('mjx-dotted')) return STYLESHEET.dotted
-  return undefined
+  return classes.includes('mjx-dashed') ? STYLESHEET.dashed : undefined
 }
 
-// CSS box properties, which do nothing to SVG's shapes: MathJax writes an
-// \fcolorbox's `border` on its group, say, and draws the border itself.
-const BOX_PROPERTY = /^(?:vertical-align|(?:margin|padding|border)(?:-[a-z]+)*|(?:min-|max-)?(?:width|height))$/
-
-// The declarations of a `style` attribute that bear on drawing.
+// The declarations of a `style` attribute that bear on drawing; the rest
+// (an \fcolorbox's CSS `border`, say, which MathJax draws itself) do not.
 function declarations(style = ''): [string, string][] {
-  const out: [string, string][] = []
-  for (const declaration of style.split(';')) {
-    const [key = '', value = ''] = declaration.split(':').map(s => s.trim())
-    if (!key) continue
-    if (['fill', 'stroke', 'stroke-width'].includes(key)) out.push([key, value])
-    else if (!BOX_PROPERTY.test(key)) {
-      throw new Unsupported(`MathJax drew with style ${key}, which texel does not draw`)
-    }
-  }
-  return out
+  return style
+    .split(';')
+    .map(declaration => declaration.split(':').map(s => s.trim()) as [string, string])
+    .filter(([key]) => ['fill', 'stroke', 'stroke-width'].includes(key))
 }
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0]
@@ -333,49 +300,30 @@ function frame(x: number, y: number, w: number, h: number, width: number, dash: 
 }
 
 // A stroke `width` wide from `a` to `b`: one butt-ended bar, or its dashes
-// from `phase` along the dash pattern, round-ended where dotted. Returns the
-// phase it ends at, for a stroke that carries on.
+// from `phase` along the dash pattern. Returns the phase it ends at, for a
+// stroke that carries on.
 function stroke(a: Point, b: Point, width: number, dash: Dash | undefined, phase = 0): { outlines: Outline[]; phase: number } {
   const length = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (!length) return { outlines: [], phase }
   const at = (s: number): Point => [a[0] + ((b[0] - a[0]) * s) / length, a[1] + ((b[1] - a[1]) * s) / length]
-  if (!dash) return { outlines: length ? [bar(a, b, width, false)] : [], phase }
+  if (!dash) return { outlines: [bar(a, b, width)], phase }
   // An odd list of dashes repeats to make an even one, as in SVG.
   const pattern = dash.dashes.length % 2 ? [...dash.dashes, ...dash.dashes] : [...dash.dashes]
   const period = pattern.reduce((sum, d) => sum + d, 0)
   const outlines: Outline[] = []
   // Walk the pattern from the start of the period `phase` falls in.
   let s = -(phase % period)
-  for (let j = 0; s <= length; j = (j + 1) % pattern.length) {
+  for (let j = 0; s < length; j = (j + 1) % pattern.length) {
     const end = s + pattern[j]!
-    if (j % 2 === 0 && end >= 0) {
-      const [from, to] = [Math.max(0, s), Math.min(length, end)]
-      if (to > from || (dash.round && s >= 0)) outlines.push(bar(at(from), at(to), width, dash.round))
-    }
+    if (j % 2 === 0 && end > 0) outlines.push(bar(at(Math.max(0, s)), at(Math.min(length, end)), width))
     s = end
   }
   return { outlines, phase: phase + length }
 }
 
-// A bar `width` wide from `a` to `b`, square-ended or, `round`, with half
-// circles (a dot where `a` is `b`), wound one way whichever way it runs.
-function bar(a: Point, b: Point, width: number, round: boolean): Outline {
-  const t = width / 2
+// A bar `width` wide from `a` to `b`, its ends square.
+function bar(a: Point, b: Point, width: number): Outline {
   const length = Math.hypot(b[0] - a[0], b[1] - a[1])
-  const [ux, uy] = length ? [(b[0] - a[0]) / length, (b[1] - a[1]) / length] : [1, 0]
-  const [nx, ny] = [-uy * t, ux * t]
-  const side = (p: Point, sign: 1 | -1): Point => [p[0] + sign * nx, p[1] + sign * ny]
-  if (!round) return { start: side(a, 1), segments: [[side(b, 1)], [side(b, -1)], [side(a, -1)]] }
-  // Each half circle as two quarter arcs, cubic Béziers with the usual 0.5523.
-  const k = 0.5523
-  const [fx, fy] = [ux * t, uy * t]
-  const cap = (p: Point, sign: 1 | -1): Point[][] => {
-    const [ox, oy, dx, dy] = [sign * nx, sign * ny, sign * fx, sign * fy]
-    const tip: Point = [p[0] + dx, p[1] + dy]
-    const end: Point = [p[0] - ox, p[1] - oy]
-    return [
-      [[p[0] + ox + k * dx, p[1] + oy + k * dy], [tip[0] + k * ox, tip[1] + k * oy], tip],
-      [[tip[0] - k * ox, tip[1] - k * oy], [end[0] + k * dx, end[1] + k * dy], end],
-    ]
-  }
-  return { start: side(a, 1), segments: [[side(b, 1)], ...cap(b, 1), [side(a, -1)], ...cap(a, -1)] }
+  const [nx, ny] = [(-(b[1] - a[1]) / length) * (width / 2), ((b[0] - a[0]) / length) * (width / 2)]
+  return { start: [a[0] + nx, a[1] + ny], segments: [[[b[0] + nx, b[1] + ny]], [[b[0] - nx, b[1] - ny]], [[a[0] - nx, a[1] - ny]]] }
 }

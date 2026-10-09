@@ -12,8 +12,6 @@
 //
 // scripts/smoke.mts checks the result against resvg, pixel by pixel.
 
-import type { RenderFailure } from '../result'
-
 export type Point = readonly [number, number]
 
 /** An axis-aligned box. */
@@ -46,11 +44,9 @@ export type Raster = {
 const FLATNESS = 0.1
 /** The least alpha that counts as ink when measuring: a faint fringe does not move a formula. */
 const INK = 8
-/** The largest canvas filled, in pixels: what a formula far bigger than a picture can be stops at. */
-export const MAX_PIXELS = 1 << 23
 
 /** `drawing` filled at `pxPerEm` pixels to the em, in colour `rgb`. */
-export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: readonly [number, number, number]): Raster | RenderFailure {
+export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: readonly [number, number, number]): Raster {
   const k = pxPerEm / 1000
   const toPixels = ([x, y]: Point): Point => [(x - viewBox.left) * k, (y - viewBox.top) * k]
   const filled = shapes.map(({ outlines, clip }) => {
@@ -66,7 +62,6 @@ export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: re
   const [ox, oy] = [Math.floor(bounds.left) - 1, Math.floor(bounds.top) - 1]
   const width = Math.ceil(bounds.right) - ox + 1
   const height = Math.ceil(bounds.bottom) - oy + 1
-  if (width * height > MAX_PIXELS) return { error: `too large to draw: ${width} x ${height} pixels` }
 
   // Signed area per pixel, a spare cell at each row's end for an edge's remainder;
   // each shape's is swept into `alpha` and cleared before the next.

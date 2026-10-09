@@ -10,7 +10,7 @@ const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }
 // Answers that know each formula's ink, and draw any placement as asked.
 const answers = (inks: Record<string, Ink>): Answers<undefined> => ({
   ink: async tex => inks[tex] ?? { error: 'unknown' },
-  picture: async job => ({ picture: { rgba: '', width: 1, height: 1 }, columns: job.kind === 'inline' ? job.placement.columns : 1, rows: 1 }),
+  picture: async job => ({ picture: { png: '' }, columns: job.kind === 'inline' ? job.placement.columns : 1, rows: 1 }),
 })
 
 const texts = (laid: Awaited<ReturnType<typeof layoutParagraph>>) =>

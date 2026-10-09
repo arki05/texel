@@ -1,4 +1,4 @@
-// The part of MathJax texel bundles into the plugin (scripts/build-mathjax.mts):
+// The part of MathJax texel bundles into the plugin (scripts/build-vendor.mts):
 // TeX in, MathJax's SVG out as a tree of plain objects. No DOM, no I/O, no
 // dynamic loading: every TeX package and font is imported statically, since
 // a hooks module may not `import()`.

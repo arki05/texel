@@ -1,17 +1,12 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { isFailure } from '../result'
-import { MAX_PIXELS, rasterize, type Box, type Outline, type Raster, type Shape } from './raster'
+import { rasterize, type Box, type Outline, type Raster, type Shape } from './raster'
 
 const rect = (x0: number, y0: number, x1: number, y1: number): Outline => ({ start: [x0, y0], segments: [[[x1, y0]], [[x1, y1]], [[x0, y1]]] })
 const box = (left: number, top: number, right: number, bottom: number): Box => ({ left, top, right, bottom })
 
 // At 10 pixels to the em, a viewBox unit is a hundredth of a pixel.
-function fill(shapes: Shape[], viewBox = box(0, 0, 1000, 1000)): Raster {
-  const r = rasterize({ viewBox, shapes }, 10, [255, 0, 0])
-  if (isFailure(r)) throw new Error(r.error)
-  return r
-}
+const fill = (shapes: Shape[], viewBox = box(0, 0, 1000, 1000)): Raster => rasterize({ viewBox, shapes }, 10, [255, 0, 0])
 
 // The alpha of the pixel `dx`, `dy` from the ink's top-left corner.
 const alphaAt = (r: Raster, dx: number, dy: number) => r.rgba[((r.ink!.top + dy) * r.width + r.ink!.left + dx) * 4 + 3]!
@@ -62,10 +57,5 @@ describe('rasterize', () => {
     let sum = 0
     for (let i = 3; i < r.rgba.length; i += 4) sum += r.rgba[i]!
     expect(Math.abs(sum / 255 / 100 - 2 / 3)).toBeLessThan(0.01)
-  })
-
-  test('a canvas too large is refused before it is made', () => {
-    const side = Math.ceil(Math.sqrt(MAX_PIXELS)) * 100 + 1000
-    expect(rasterize({ viewBox: box(0, 0, side, side), shapes: [] }, 10, [0, 0, 0])).toEqual({ error: expect.stringContaining('too large to draw') })
   })
 })

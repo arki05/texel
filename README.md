@@ -104,7 +104,9 @@ split into prose, inline math, display math and typst blocks.
   SVG is read as outlines (strokes, clipping and its stylesheet's table
   rules included; anything else is refused, not guessed at), and a small
   rasteriser fills them by exact area coverage, the technique of font-rs and
-  tiny-skia. Development checks it against resvg over a corpus of formulas.
+  tiny-skia; the pixels go to the terminal as a PNG (compressed by the
+  bundled fflate). Development checks the drawing against resvg over a
+  corpus of formulas.
 - **typst blocks** go to the `typst` command line, a few at a time, and are
   cached by content in your cache folder (`~/Library/Caches/texel`, or
   `$XDG_CACHE_HOME/texel`).
@@ -116,11 +118,11 @@ split into prose, inline math, display math and typst blocks.
 ## Develop
 
 ```sh
-npm install                   # build tooling: MathJax, esbuild, TypeScript, resvg (dev only)
+npm install                   # build tooling: MathJax, fflate, esbuild, TypeScript, resvg (dev only)
 npm test                      # the plugin's tests (claude plugin test plugin)
 npm run typecheck             # after `npm test` once: it writes the types Claude Code gives a plugin
 npm run smoke                 # both backends for real; the drawing against resvg
-npm run build:mathjax         # rebuild the bundled MathJax into plugin/hooks/render/mathjax/vendor
+npm run build:vendor          # rebuild the bundled MathJax and fflate (the plugin's vendor folders)
 npm run check:vendor          # the same, failing if the committed bundle differs
 claude plugin validate .      # marketplace, manifest and hooks
 claude --plugin-dir plugin    # a session with this checkout's texel, reloaded on edit
@@ -128,5 +130,6 @@ claude --plugin-dir plugin    # a session with this checkout's texel, reloaded o
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The bundled MathJax is Apache-2.0, its licence
-and provenance in `plugin/hooks/render/mathjax/vendor/`.
+MIT, see [LICENSE](LICENSE). The bundled MathJax is Apache-2.0 and the
+bundled fflate MIT, each with its licence and provenance in its vendor folder
+(`plugin/hooks/render/mathjax/vendor/`, `plugin/hooks/render/vendor/`).

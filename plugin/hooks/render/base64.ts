@@ -1,4 +1,4 @@
-// Bytes as base64: what an Image's `rgba` source carries.
+// Bytes as base64: what an Image's `png` source carries.
 
 type WithBase64 = Uint8Array & { toBase64?: () => string }
 

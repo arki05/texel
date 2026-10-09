@@ -1,11 +1,11 @@
 {
   "name": "texel-dev",
   "private": true,
-  "description": "Build tooling for texel: bundles MathJax into the plugin, type-checks and tests it, runs the real-typst smoke check.",
+  "description": "Build tooling for texel: bundles MathJax and fflate into the plugin, type-checks and tests it, runs the real-typst smoke check.",
   "type": "module",
   "scripts": {
-    "build:mathjax": "tsx scripts/build-mathjax.mts",
-    "check:vendor": "tsx scripts/build-mathjax.mts && git diff --exit-code -- plugin/hooks/render/mathjax/vendor",
+    "build:vendor": "tsx scripts/build-vendor.mts",
+    "check:vendor": "tsx scripts/build-vendor.mts && git diff --exit-code -- plugin/hooks/render/mathjax/vendor plugin/hooks/render/vendor",
     "typecheck": "tsc -p plugin",
     "test": "claude plugin test plugin",
     "smoke": "tsx scripts/smoke.mts"
@@ -13,6 +13,7 @@
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",
     "esbuild": "0.24.2",
+    "fflate": "0.8.3",
     "mathjax-full": "3.2.2",
     "tsx": "4.19.2",
     "typescript": "5.9.3"

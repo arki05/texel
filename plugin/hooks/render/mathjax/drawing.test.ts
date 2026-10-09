@@ -56,12 +56,11 @@ describe('drawingOf', () => {
     expect(shape!.clip).toEqual({ left: 100, top: 200, right: 400, bottom: 600 })
   })
 
-  test("a background is left out; a text MathJax's fonts lack, or anything unknown, fails", () => {
+  test("a background is left out; a text MathJax's fonts lack, or an element or transform unknown, fails", () => {
     expect(drawn(svg(node('rect', { x: '0', y: '0', width: '10', height: '10', 'data-bgcolor': 'true' }))).shapes).toEqual([])
     expect(drawingOf(svg({ ...node('text'), text: 'П' }))).toEqual({ error: 'MathJax\'s fonts have no "П"' })
     expect(drawingOf(svg(node('ellipse')))).toMatchObject({ error: expect.stringContaining('<ellipse>') })
     expect(drawingOf(svg(node('g', { transform: 'skewX(10)' })))).toMatchObject({ error: expect.stringContaining('skewX') })
-    expect(drawingOf(svg(node('rect', { rx: '3' })))).toMatchObject({ error: expect.stringContaining('rx') })
     expect(drawingOf(svg(node('path', { d: 'M0 0A1 1 0 0 0 5 5' })))).toMatchObject({ error: expect.stringContaining('A') })
   })
 })
@@ -73,7 +72,8 @@ describe("MathJax's stylesheet", () => {
     [STYLESHEET.root.selector]: READ,
     ...Object.fromEntries(STYLESHEET.rules.selectors.map(selector => [selector, READ])),
     [STYLESHEET.dashed.selector]: READ,
-    [STYLESHEET.dotted.selector]: READ,
+    // TeX asks for solid and dashed rules only.
+    'g[data-mml-node="mtable"] > .mjx-dotted': 'TeX draws no dotted rules',
     [STYLESHEET.unclipped.selector]: READ,
     // A hairline round every glyph, 3 thousandths of an em: under a tenth of a pixel here.
     'mjx-container[jax="SVG"] path[data-c], mjx-container[jax="SVG"] use[data-c]': 'not drawn: too thin to show',
@@ -114,7 +114,6 @@ describe("MathJax's stylesheet", () => {
       expect(rules.get(selector)).toEqual({ 'stroke-width': `${STYLESHEET.rules.strokeWidth}px`, fill: 'none' })
     }
     expect(rules.get(STYLESHEET.dashed.selector)).toEqual({ 'stroke-dasharray': STYLESHEET.dashed.dashes.join(',') })
-    expect(rules.get(STYLESHEET.dotted.selector)).toEqual({ 'stroke-linecap': 'round', 'stroke-dasharray': STYLESHEET.dotted.dashes.join(',') })
     expect(rules.get(STYLESHEET.unclipped.selector)).toEqual({ overflow: 'visible' })
   })
 })

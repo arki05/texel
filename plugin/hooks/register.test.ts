@@ -1,6 +1,8 @@
 import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 
+import { decodePng } from './render/png'
+
 // The whole mod against a stubbed host: what it draws, what it asks typst,
 // what it tells the model. LaTeX goes through the real MathJax; typst is stubbed.
 
@@ -75,7 +77,7 @@ function world(on: On, { macros, png = [47, 51], run, machine = GHOSTTY, theme =
 
 const input = (argv: string[] | undefined, name: string) => argv?.find(arg => arg.startsWith(`${name}=`))?.slice(name.length + 1)
 
-type ImageProps = { source: { rgba?: string; file?: string }; columns: number; rows: number }
+type ImageProps = { source: { png?: string; file?: string }; columns: number; rows: number }
 
 // Every Image in a drawn tree, in order.
 function images(tree: RenderElement): ImageProps[] {
@@ -86,7 +88,7 @@ function images(tree: RenderElement): ImageProps[] {
 
 // The colour of a MathJax picture's first fully inked pixel, as six hex digits.
 function inkColour({ source }: ImageProps) {
-  const bytes = Uint8Array.from(atob(source.rgba!), c => c.charCodeAt(0))
+  const bytes = decodePng(Uint8Array.from(atob(source.png!), c => c.charCodeAt(0))).rgba
   const at = [...Array(bytes.length / 4).keys()].find(i => bytes[i * 4 + 3] === 255)!
   return [...bytes.subarray(at * 4, at * 4 + 3)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
@@ -114,8 +116,22 @@ test('a reply with display and inline math draws them as pictures, typst never a
   const drawing = await show($, 'So \\(x^2\\) grows:\n\n\\[\\int_0^1 x\\,dx\\]\n\ndone.')
   const drawn = images(await drawing.drawn())
   expect(drawn).toHaveLength(2)
-  expect(drawn.every(image => image.source.rgba)).toBe(true)
+  expect(drawn.every(image => image.source.png)).toBe(true)
   expect(compiles).toHaveLength(0)
+})
+
+test('a reply full of display math is drawn whole: its pictures fit in one message', { timeoutMs: 30000 }, async ($, on) => {
+  const { show } = world(on)
+  const formulas = [
+    'I^2 = \\int_0^{2\\pi}\\!\\int_0^\\infty e^{-r^2}\\, r \\,dr\\,d\\theta = \\pi \\quad\\Longrightarrow\\quad \\boxed{\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}}',
+    'R(\\theta) = \\begin{pmatrix} \\cos\\theta & -\\sin\\theta \\\\ \\sin\\theta & \\cos\\theta \\end{pmatrix}',
+    '|x| = \\begin{cases} x & x \\geq 0 \\\\ -x & \\text{otherwise} \\end{cases}',
+  ]
+  const reply = Array.from({ length: 4 }, () => formulas.map(f => `\\[${f}\\]`).join('\n\n')).join('\n\n')
+  const drawn = images(await (await show($, reply)).drawn())
+  expect(drawn).toHaveLength(12)
+  // Claude Code takes at most 2 MiB of Image source in one message's drawing.
+  expect(drawn.reduce((sum, image) => sum + image.source.png!.length, 0)).toBeLessThan(2 * 1024 * 1024)
 })
 
 test('replies without math are left to the engine', { timeoutMs: 15000 }, async ($, on) => {

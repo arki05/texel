@@ -2,8 +2,8 @@
 
 import { MAX_CELLS } from '../layout/geometry'
 
-/** A picture's pixels: a PNG file typst wrote, or RGBA bytes held in memory (base64). */
-export type Picture = { file: string } | { rgba: string; width: number; height: number }
+/** A picture: a PNG file typst wrote, or a PNG held in memory (base64). */
+export type Picture = { file: string } | { png: string }
 
 /** A picture, and the cells it covers. */
 export type Rendered = { picture: Picture; columns: number; rows: number }
