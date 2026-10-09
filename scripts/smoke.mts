@@ -23,6 +23,7 @@ import { CORPUS } from '../plugin/hooks/render/mathjax/corpus.ts'
 import { drawingOf } from '../plugin/hooks/render/mathjax/drawing.ts'
 import { rasterize } from '../plugin/hooks/render/mathjax/raster.ts'
 import { createTex, stylesheet, type SvgNode } from '../plugin/hooks/render/mathjax/vendor/mathjax-entry.js'
+import { pngSize } from '../plugin/hooks/render/png.ts'
 import { isFailure } from '../plugin/hooks/render/result.ts'
 import { readSettings } from '../plugin/hooks/settings.ts'
 import { createTypstBackend, TypstCache } from '../plugin/hooks/render/typst/backend.ts'
@@ -148,6 +149,37 @@ if (!version) {
   // Content that stretches to its width (a 1fr column) measures tall without one: it must not come out tall.
   const stretchy = await typst.fresh({ kind: 'typst', typst: '#table(columns: (auto, 1fr), [Area], [A finding long enough to wrap if its column had no width], [Parser], [fixed])', maxColumns: 120 })
   check('typst stretchy table is sized at its width', isFailure(stretchy) || stretchy.rows > 4 ? { error: `rows ${'rows' in stretchy ? stretchy.rows : '?'}` } : stretchy)
+  // Blocks like the ones Claude writes, each at a narrow and a wide width:
+  // drawn, on whole cells, and no taller than their content needs. Those
+  // that import a package run with --packages, as typst downloads them.
+  const corpus: { name: string; typst: string; packages?: true }[] = [
+    { name: 'long prose', typst: 'A paragraph that goes on long enough to wrap at any width a terminal has. '.repeat(6) },
+    { name: 'headings, a list and math', typst: '= Title\nSome text with $x^2$.\n- one\n- two, $integral_0^1 x dif x$\n$ sum_(k=1)^n k = n(n+1)/2 $' },
+    { name: 'a table with a 1fr column', typst: '#table(columns: (auto, 1fr, auto), [*A*], [*Finding*], [*B*], [x], [A finding that wraps when its column is narrow enough to make it], [y])' },
+    { name: 'two columns in a grid', typst: '#grid(columns: (1fr, 1fr), gutter: 12pt, [== Left\n' + 'Words on the left. '.repeat(8) + '], [== Right\n$ e^(i pi) + 1 = 0 $])' },
+    { name: 'filled boxes and a note', typst: '#block(width: 100%, inset: 8pt, radius: 4pt, fill: rgb("#b3bd5a").transparentize(85%))[*Note* a filled box.] #box(inset: 4pt, fill: blue)[pill]' },
+    { name: 'a fletcher diagram', packages: true, typst: '#import "@preview/fletcher:0.5.8" as fletcher: diagram, node, edge\n#diagram(node((0, 0), $A$), edge("->", bend: 20deg), node((1, 0), $B$), node((0, 1), [box], stroke: 0.5pt))' },
+    { name: 'a cetz canvas', packages: true, typst: '#import "@preview/cetz:0.4.2"\n#cetz.canvas({ import cetz.draw: *; set-style(stroke: white); line((0, 0), (3, 1)); circle((4, 0.5), radius: 0.5) })' },
+  ]
+  const withPackages = process.argv.includes('--packages')
+  const pixelsPerCell = grid.cellWidth * 3
+  for (const block of corpus) {
+    if (block.packages && !withPackages) {
+      console.log(`skip ${`typst ${block.name}`.padEnd(42)} (imports a package: run with --packages)`)
+      continue
+    }
+    for (const maxColumns of [40, 120]) {
+      const drawn = await typst.fresh({ kind: 'typst', typst: block.typst, maxColumns })
+      const name = `typst ${block.name} at ${maxColumns}`
+      if (isFailure(drawn) || !('file' in drawn.picture)) {
+        check(name, isFailure(drawn) ? drawn : { error: 'not a file' })
+        continue
+      }
+      const { width, height } = pngSize(readFileSync(drawn.picture.file).toString('base64'))
+      const whole = Math.abs(width / pixelsPerCell - Math.round(width / pixelsPerCell)) < 0.02 && height % (grid.cellHeight * 3) === 0
+      check(name, whole && drawn.columns <= maxColumns && drawn.rows < 60 ? drawn : { error: `${width} x ${height} px, ${drawn.columns} x ${drawn.rows} cells` })
+    }
+  }
   check('typst syntax error is reported', await typst.fresh({ kind: 'typst', typst: '#let x = (', maxColumns: 40 }), true)
 }
 

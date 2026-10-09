@@ -125,7 +125,8 @@ split into prose, inline math, display math and typst blocks.
 npm install                   # build tooling: MathJax, fflate, esbuild, TypeScript, resvg (dev only)
 npm test                      # the plugin's tests (claude plugin test plugin)
 npm run typecheck             # after one `claude --plugin-dir plugin` session, which writes the types Claude Code gives a plugin
-npm run smoke                 # both backends for real; the drawing against resvg
+npm run smoke                 # both backends for real: the drawing against resvg, a typst corpus
+npm run smoke -- --packages   # the same, with the typst blocks that import packages (typst downloads them)
 npm run build:vendor          # rebuild the bundled MathJax and fflate (the plugin's vendor folders)
 npm run check:vendor          # the same, failing if the committed bundle differs
 claude plugin validate .      # marketplace, manifest and hooks

@@ -86,6 +86,23 @@ function images(tree: RenderElement): ImageProps[] {
   return [...own, ...(node.children ?? []).flatMap(child => (child && typeof child === 'object' ? images(child as RenderElement) : []))]
 }
 
+type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[]; text?: string }
+
+// The nearest Box above the first node `match` finds, as the drawn tree nests them.
+function boxAround(tree: RenderElement, match: (node: Node) => boolean): Record<string, unknown> | undefined {
+  const walk = (node: Node, box: Record<string, unknown> | undefined): Record<string, unknown> | undefined => {
+    if (match(node)) return box
+    const own = node.type === 'Box' ? node.props : box
+    for (const child of node.children ?? []) {
+      const found = child && typeof child === 'object' ? walk(child as Node, own) : undefined
+      if (found) return found
+    }
+    return undefined
+  }
+  return walk(tree as unknown as Node, undefined)
+}
+const textOf = (node: Node) => (node.children ?? []).filter(child => typeof child === 'string').join('')
+
 // The colour of a MathJax picture's first fully inked pixel, as six hex digits.
 function inkColour({ source }: ImageProps) {
   const bytes = decodePng(Uint8Array.from(atob(source.png!), c => c.charCodeAt(0))).rgba
@@ -150,6 +167,31 @@ test('an ordinary formula keeps its row', { timeoutMs: 15000 }, async ($, on) =>
   const { show } = world(on)
   const drawing = await show($, 'the ladder \\(\\kappa_c(t) = g_c \\ell_c(t)\\) holds')
   expect(images(await drawing.drawn())[0]?.rows).toBe(1)
+})
+
+test('text sits on a tall formula\'s text row: the rows it grows above come first', { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
+  const tree = await (await show($, 'see \\(\\begin{pmatrix} a \\\\ b \\\\ c \\end{pmatrix}\\) here')).drawn()
+  const [matrix] = images(tree)
+  const text = boxAround(tree, node => node.type === 'Text' && textOf(node) === 'see ')
+  const picture = boxAround(tree, node => node.type === 'Box' && node.props?.flexShrink === 0)
+  expect(matrix!.rows).toBeGreaterThan(1)
+  // The picture starts at the line's top; the text, the rows above it down.
+  expect(picture?.marginTop).toBe(0)
+  expect(text?.marginTop).toBeGreaterThanOrEqual(1)
+  expect(text?.marginTop).toBeLessThan(matrix!.rows)
+})
+
+test('a list item\'s later rows hang under its text, not its marker', { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
+  const tree = await (await show($, '- a list item with \\(x\\) and words enough to wrap onto a second row here', { columns: 34 })).drawn()
+  const rows = (function collect(node: Node): Record<string, unknown>[] {
+    const own = node.type === 'Box' && node.props?.flexDirection === 'row' ? [node.props] : []
+    return [...own, ...(node.children ?? []).flatMap(child => (child && typeof child === 'object' ? collect(child as Node) : []))]
+  })(tree as unknown as Node)
+  // The marker `• ` is two columns: every row after the first starts under the text.
+  expect(rows.length).toBeGreaterThan(1)
+  expect(rows.map(row => row.paddingLeft)).toEqual([0, ...rows.slice(1).map(() => 2)])
 })
 
 test('with a stricter smallest scale, the same formula takes a row', { timeoutMs: 15000, options: { inlineMinScale: 0.95 } }, async ($, on) => {
