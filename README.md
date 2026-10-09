@@ -7,7 +7,7 @@ redraws Claude's replies, and your own prompts, with LaTeX math and typst
 blocks rendered as images, inline with the text around them. Inspired by
 [pi-math](https://github.com/Fadouse/pi-math).
 
-![Claude explaining the Gaussian integral, Euler's identity and a rotation matrix, with the formulas, a commutative diagram and a table typeset in the terminal](docs/screenshot.png)
+![Claude explaining Maxwell's equations, the Gaussian integral, a matrix diagonalisation and Bayes' theorem, with the formulas, inline and on their own, and a commutative diagram typeset in the terminal](docs/screenshot.png)
 
 - **LaTeX, with nothing to install.** `\( … \)`, `\[ … \]`, `$ … $`,
   `$$ … $$` and ```` ```math ```` fences are typeset by MathJax, which runs
@@ -18,7 +18,9 @@ blocks rendered as images, inline with the text around them. Inspired by
   rows it needs, as LaTeX does, and the paragraph re-wraps around it.
 - **typst blocks**, if typst is installed: a ```` ```typst ```` fence is set by
   typst, as a figure (cetz diagrams, tables) or as prose laid out at the
-  terminal's width.
+  terminal's width, up to `typstMaxWidth`. A whole reply can be one:
+
+  ![A reply written as one typst block: headings, a diagram of texel's pipeline, a table and display math, typeset in the terminal](docs/screenshot-typst.png)
 - **Claude knows.** A short note in the system prompt tells Claude this
   terminal typesets LaTeX, and typst blocks where typst can draw them.
 
