@@ -50,8 +50,11 @@
     // line's cap height to the last one's baseline: room above for ascenders
     // and accents, below for descenders.
     let (top, bottom) = (0.25 * ch, 0.45 * ch)
-    let h = measure(block(width: w, body)).height + top + bottom
-    // Centred as one block; its own lines keep their alignment.
-    box(width: w, height: calc.max(1, calc.ceil(h / ch)) * ch, inset: (top: top), align(center, box({ set align(start); body })))
+    let h = measure(block(width: w, body)).height
+    let rows = calc.max(1, calc.ceil((h + top + bottom) / ch))
+    // Laid out as it was measured, with no height to fill (a `height: 100%`
+    // in a box of fixed height would take all of it), and padded to whole
+    // rows. Centred as one block; its own lines keep their alignment.
+    block(width: w, inset: (top: top, bottom: rows * ch - h - top), align(center, box({ set align(start); body })))
   }
 }
