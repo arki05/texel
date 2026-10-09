@@ -4,7 +4,7 @@ Typeset math in Claude Code's terminal. texel is a Claude Code plugin that
 redraws Claude's replies, and your own prompts, with LaTeX math and typst
 blocks rendered as images, inline with the text around them.
 
-<!-- A screenshot or short recording goes here. -->
+![Claude explaining the Gaussian integral, Euler's identity and a rotation matrix, with the formulas, a commutative diagram and a table typeset in the terminal](docs/screenshot.png)
 
 - **LaTeX, with nothing to install.** `\( … \)`, `\[ … \]`, `$ … $`,
   `$$ … $$` and ```` ```math ```` fences are typeset by MathJax, which runs
@@ -127,6 +127,16 @@ npm run check:vendor          # the same, failing if the committed bundle differ
 claude plugin validate .      # marketplace, manifest and hooks
 claude --plugin-dir plugin    # a session with this checkout's texel, reloaded on edit
 ```
+
+## Credits
+
+texel was written by Claude, in Claude Code, with a human steering,
+reviewing and now and then sending it back to do it properly. A Claude Code
+mod built by Claude seemed only fitting: it had spent long enough writing
+`\frac{\partial u}{\partial t}` into terminals that could not show it.
+
+The idea comes from [pi-math](https://github.com/Fadouse/pi-math), which
+brought typeset math to the terminal of the Pi coding agent.
 
 ## License
 

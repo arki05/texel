@@ -90,6 +90,15 @@ function hostOf($: EngineInterface) {
   return host
 }
 
+// Claude Code's theme, light or dark, read once and again after it changes.
+function themeOf($: EngineInterface, known: Host): Promise<Theme> {
+  theme ??= retried(
+    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, known.systemIsDark)),
+    () => (theme = undefined),
+  )
+  return theme
+}
+
 // Whether texel draws pictures here: a terminal that shows them, unless set otherwise.
 function draws(settings: Settings, { machine }: Host) {
   if (settings.images === 'never') return false
@@ -133,11 +142,7 @@ async function prepare(
   const known = await hostOf($)
   if (!draws(settings, known)) return undefined
 
-  theme ??= retried(
-    $.config.list().then(rows => themeFrom(rows.find(row => row.key === 'theme')?.value, known.systemIsDark)),
-    () => (theme = undefined),
-  )
-  const current = await theme
+  const current = await themeOf($, known)
   const grid = gridFor(settings.font)
   const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
   const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineScale: settings.inlineScale, macros })
@@ -198,7 +203,8 @@ export const register: Register = (on, options) => {
     const known = await hostOf($)
     if (!draws(settings, known)) return composed
     const typst = 'version' in typstStatus(known.typst)
-    const section = { id: PROMPT_SECTION, text: promptNote({ typst, packages: settings.typstPackages }), scope: 'session' as const }
+    const note = promptNote({ typst, packages: settings.typstPackages, theme: await themeOf($, known) })
+    const section = { id: PROMPT_SECTION, text: note, scope: 'session' as const }
     return { sections: [...composed.sections, section] }
   })
 

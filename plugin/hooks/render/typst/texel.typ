@@ -23,9 +23,19 @@
 // row to spare, as layout/geometry.ts's blockCells sizes display math;
 // anything wider is laid out at the full width, so its prose wraps.
 #let typst-block(body) = {
+  let fg = rgb("#" + input("foreground"))
   set page(width: auto, height: auto, margin: 0pt, fill: none)
-  set text(fill: rgb("#" + input("foreground")), size: size)
+  set text(fill: fg, size: size)
   set par(justify: true)
+  // Lines given no colour take the text's, not black, which a dark terminal
+  // hides: typst folds it into a stroke that names only its width (a table's
+  // `stroke: 0.5pt`, fletcher's arrows). Shapes keep typst's own default, so
+  // a filled box gains no outline.
+  set line(stroke: fg)
+  set curve(stroke: fg)
+  // A table's padding in em, as typst's 5pt is at its own 11pt: at the size
+  // text is set here, an inline fraction would overflow 5pt into the next row.
+  set table(stroke: fg, inset: 0.45em)
   context {
     let maxw = int(input("max-columns")) * cw
     let m = measure(body)
