@@ -129,6 +129,16 @@ describe('what MathJax draws', () => {
     }
   })
 
+  test('accented letters in text are drawn, every accent the fonts have; in math, they name themselves', () => {
+    const tex = createTex('')
+    for (const text of ['\\text{für Ärger, café, mañana, šček, Žižek, ğ ă}', '\\textbf{né} \\mbox{ñ}']) {
+      const svg = tex.convert(text, false)
+      expect([text, 'error' in svg ? svg.error : drawingOf(svg)]).toEqual([text, expect.objectContaining({ shapes: expect.any(Array) })])
+    }
+    expect(drawingOf(tex.convert('\\text{a $é$}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "é"' })
+    expect(drawingOf(tex.convert('\\mathrm{ä}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "ä"' })
+  })
+
   test('a character outside MathJax\'s fonts is refused by name', () => {
     expect(drawingOf(createTex('').convert('\\text{Привет}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "П"' })
     expect(drawingOf(createTex('').convert('\\text{Straße}', false) as SvgNode)).toEqual({ error: 'MathJax\'s fonts have no "ß"' })
