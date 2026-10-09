@@ -6,7 +6,7 @@ import type { BlockRenderer, Renderers } from '../render/renderer'
 import { DEFAULT_FIT } from './fit'
 import { layoutMessage } from './message'
 
-const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }
+const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }
 const options = { grid, fit: DEFAULT_FIT, columns: 80 }
 const picture = (bytes: number) => ({ picture: { png: 'x'.repeat(bytes) }, columns: 4, rows: 2 })
 

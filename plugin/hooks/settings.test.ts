@@ -9,7 +9,7 @@ describe('readSettings', () => {
     expect(readSettings({})).toEqual({
       mathColor: undefined,
       typstColor: undefined,
-      inlineScale: 1.2,
+      inlineSize: 1.2,
       fit: DEFAULT_FIT,
       font: FONTS['JetBrains Mono'],
       images: 'auto',
@@ -25,13 +25,13 @@ describe('readSettings', () => {
   })
 
   test('numbers are held to ranges that cannot break the layout', () => {
-    const { inlineScale, fit } = readSettings({ inlineSize: 50, inlineMinScale: -1, inlineShiftUp: 'lots' })
-    expect([inlineScale, fit.minScale, fit.shiftUp]).toEqual([3, 0.1, DEFAULT_FIT.shiftUp])
+    const { inlineSize, fit } = readSettings({ inlineSize: 50, inlineMinScale: -1, inlineShiftUp: 'lots' })
+    expect([inlineSize, fit.minScale, fit.shiftUp]).toEqual([3, 0.1, DEFAULT_FIT.shiftUp])
   })
 
   test('a field cleared, or only spaces, is its default, not its least', () => {
-    const { inlineScale, fit } = readSettings({ inlineSize: '', inlineMinScale: '  ' })
-    expect([inlineScale, fit.minScale]).toEqual([1.2, DEFAULT_FIT.minScale])
+    const { inlineSize, fit } = readSettings({ inlineSize: '', inlineMinScale: '  ' })
+    expect([inlineSize, fit.minScale]).toEqual([1.2, DEFAULT_FIT.minScale])
   })
 
   test('a font is a preset, or Custom with its own proportions', () => {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { importsPackage, program, widthFree, withoutPageRules, type TypstStyle } from './program'
 
-const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }, color: 'e6e6e6' }
+const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6' }
 const block = (maxColumns: number, typst = 'hi') => ({ typst, maxColumns })
 
 describe('program', () => {

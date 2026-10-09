@@ -6,18 +6,18 @@ import type { RenderFailure } from '../result'
 /** How many times work that failed transiently is tried before its failure is kept. */
 const ATTEMPTS = 2
 
-export class Memo {
-  private readonly running = new Map<string, Promise<object>>()
-  private readonly settled = new Map<string, object>()
+export class Memo<T> {
+  private readonly running = new Map<string, Promise<T | RenderFailure>>()
+  private readonly settled = new Map<string, T | RenderFailure>()
   private readonly failures = new Map<string, number>()
 
   /** What `key` settled to, without waiting: undefined while it runs, or before it ran. */
-  get<T extends object>(key: string): T | RenderFailure | undefined {
-    return this.settled.get(key) as T | RenderFailure | undefined
+  get(key: string): T | RenderFailure | undefined {
+    return this.settled.get(key)
   }
 
   /** Records what `key` is known to be without running anything (a picture already on disk). */
-  settle(key: string, value: object) {
+  settle(key: string, value: T | RenderFailure) {
     this.settled.set(key, value)
   }
 
@@ -27,10 +27,10 @@ export class Memo {
    * is forgotten so a later draw tries again, until ATTEMPTS have failed;
    * then it is kept too, so a redraw can never retry forever.
    */
-  once<T extends object>(key: string, work: () => Promise<T | RenderFailure>): Promise<T | RenderFailure> {
-    const settled = this.get<T>(key)
+  once(key: string, work: () => Promise<T | RenderFailure>): Promise<T | RenderFailure> {
+    const settled = this.get(key)
     if (settled) return Promise.resolve(settled)
-    const running = this.running.get(key) as Promise<T | RenderFailure> | undefined
+    const running = this.running.get(key)
     if (running) return running
     // `work` rejecting is the transient failure; what it resolves to, a failure or not, is kept.
     const run = work()

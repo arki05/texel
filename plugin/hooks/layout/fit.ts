@@ -3,7 +3,8 @@
 // so the formula keeps its size and the rows around the text make room.
 // Pure: points and cells in, a placement out.
 
-import type { Grid, Ink, Placement } from '../geometry'
+import type { Grid, Ink } from '../geometry'
+import type { Placement } from '../render/renderer'
 
 /** The person's settings (plugin.json `userConfig`); scales of natural size, shifts in rows. */
 export type FitOptions = {
@@ -38,7 +39,7 @@ const FILL = 0.98
 function place(ink: Ink, grid: Grid, options: FitOptions, maxColumns: number, above: number, below: number): InlineFit {
   const { cellWidth: cw, cellHeight: ch } = grid
   const height = (1 + above + below) * ch
-  const baseline = above * ch + grid.baseline * ch
+  const baseline = above * ch + grid.baseline
   const total = ink.above + ink.below
   const scale = Math.min(
     options.maxScale,

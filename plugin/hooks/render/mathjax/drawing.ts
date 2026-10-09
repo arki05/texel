@@ -20,19 +20,37 @@ import type { RenderFailure } from '../result'
 import type { Box, Drawing, Outline, Point, Shape } from './raster'
 import type { SvgNode } from './vendor/mathjax-entry'
 
+/** An element where it sits: what MathJax's stylesheet selects by. */
+type At = { node: SvgNode; parent: SvgNode; grandparent?: SvgNode }
+
+const inTable = (element: SvgNode | undefined) => element?.attrs['data-mml-node'] === 'mtable'
+
 /**
  * What MathJax's stylesheet does to its SVG, as far as drawing goes: each
- * rule's selector, and what this file makes of it.
+ * rule's selector, what it does, and the elements it applies to.
  */
 export const STYLESHEET = {
-  /** The formula overflows its own box: ink beyond the viewBox is drawn. */
+  /** The formula overflows its own box: ink beyond the viewBox is drawn (raster.ts). */
   root: { selector: 'mjx-container[jax="SVG"] > svg', overflow: 'visible' },
   /** A table's rules and frame are strokes 70 wide, unfilled. */
-  rules: { selectors: ['g[data-mml-node="mtable"] > line[data-line]', 'g[data-mml-node="mtable"] > rect[data-frame]'], strokeWidth: 70 },
+  rules: {
+    selectors: ['g[data-mml-node="mtable"] > line[data-line]', 'g[data-mml-node="mtable"] > rect[data-frame]'],
+    strokeWidth: 70,
+    applies: ({ node, parent }: At) =>
+      inTable(parent) && ((node.tag === 'line' && 'data-line' in node.attrs) || (node.tag === 'rect' && 'data-frame' in node.attrs)),
+  },
   /** Dashed ones, by class: TeX's `:` and \hdashline. (Dotted ones TeX cannot ask for.) */
-  dashed: { selector: 'g[data-mml-node="mtable"] > .mjx-dashed', dashes: [140] },
+  dashed: {
+    selector: 'g[data-mml-node="mtable"] > .mjx-dashed',
+    dashes: [140],
+    applies: ({ node, parent }: At) => inTable(parent) && (node.attrs.class ?? '').split(/\s+/).includes('mjx-dashed'),
+  },
   /** An <svg> in a table's row is not clipped. */
-  unclipped: { selector: 'g[data-mml-node="mtable"] > g > svg', overflow: 'visible' },
+  unclipped: {
+    selector: 'g[data-mml-node="mtable"] > g > svg',
+    overflow: 'visible',
+    applies: ({ node, parent, grandparent }: At) => node.tag === 'svg' && parent.tag === 'g' && inTable(grandparent),
+  },
 } as const
 
 type Matrix = readonly [number, number, number, number, number, number]
@@ -49,7 +67,7 @@ export function drawingOf(svg: SvgNode): Drawing | RenderFailure {
     const shapes: Shape[] = []
     // SVG's defaults: filled, unstroked.
     const context: Context = { matrix: IDENTITY, clip: undefined, fill: true, stroke: false, strokeWidth: 1 }
-    for (const child of svg.children) walk(child, svg, undefined, context, shapes)
+    for (const child of svg.children) walk({ node: child, parent: svg }, context, shapes)
     return { viewBox: { left, top, right: left + width, bottom: top + height }, shapes }
   } catch (e) {
     if (e instanceof Unsupported) return { error: e.message }
@@ -59,57 +77,72 @@ export function drawingOf(svg: SvgNode): Drawing | RenderFailure {
 
 const ELEMENTS = new Set(['g', 'svg', 'path', 'rect', 'polygon', 'line'])
 
-function walk(node: SvgNode, parent: SvgNode, grandparent: SvgNode | undefined, outer: Context, shapes: Shape[]) {
+// An element and everything in it, its shapes added to `shapes`: a group's
+// children, a nested <svg>'s placed and clipped, or a shape of its own.
+function walk(at: At, outer: Context, shapes: Shape[]) {
+  const { node } = at
   if (node.tag === 'text') throw new Unsupported(`MathJax's fonts have no ${JSON.stringify(node.text ?? '')}`)
   if (!ELEMENTS.has(node.tag)) throw new Unsupported(`MathJax drew a <${node.tag}>, which texel does not draw`)
-
-  const here = paint(node, parent, outer)
-  const { matrix } = here
-  if (node.tag === 'g') {
-    for (const child of node.children) walk(child, node, parent, here, shapes)
+  const here = paint(at, outer)
+  const inside = node.tag === 'svg' ? nested(at, here) : node.tag === 'g' ? here : undefined
+  if (inside) {
+    for (const child of node.children) walk({ node: child, parent: node, grandparent: at.parent }, inside, shapes)
     return
   }
-  if (node.tag === 'svg') {
-    const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(k => number(node, k)) as [number, number, number, number]
-    const [vx, vy, vw, vh] = viewBoxOf(node)
-    // MathJax's nested <svg>s show their viewBox at its own size.
-    if (Math.abs(width - vw) > 0.01 || Math.abs(height - vh) > 0.01) throw new Unsupported('MathJax drew a scaled <svg>, which texel does not draw')
-    const unclipped = parent.tag === 'g' && grandparent?.attrs['data-mml-node'] === 'mtable'
-    const inner = { ...here, matrix: multiply(matrix, [1, 0, 0, 1, x - vx, y - vy]), clip: unclipped ? here.clip : intersect(here.clip, boxThrough(matrix, x, y, width, height)) }
-    for (const child of node.children) walk(child, node, parent, inner, shapes)
-    return
-  }
+  const outlines = outlinesFor(at, here)
+  if (outlines.length) shapes.push({ outlines: outlines.map(o => mapped(here.matrix, o)), clip: here.clip })
+}
 
-  const outlines: Outline[] = []
-  const dash = dashOf(node, parent)
+// What a nested <svg>'s children are drawn in: placed at its x, y, and
+// clipped to its box, unless the stylesheet lets it overflow.
+function nested(at: At, here: Context): Context {
+  const { node } = at
+  const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(k => number(node, k)) as [number, number, number, number]
+  const [vx, vy, vw, vh] = viewBoxOf(node)
+  // MathJax's nested <svg>s show their viewBox at its own size.
+  if (Math.abs(width - vw) > 0.01 || Math.abs(height - vh) > 0.01) throw new Unsupported('MathJax drew a scaled <svg>, which texel does not draw')
+  const clip = STYLESHEET.unclipped.applies(at) ? here.clip : intersect(here.clip, boxThrough(here.matrix, x, y, width, height))
+  return { ...here, matrix: multiply(here.matrix, [1, 0, 0, 1, x - vx, y - vy]), clip }
+}
+
+// A shape's outlines in its own units: its fill, and its stroke made an outline.
+function outlinesFor(at: At, here: Context): Outline[] {
+  const { node } = at
+  const dash = STYLESHEET.dashed.applies(at) ? STYLESHEET.dashed : undefined
   const stroked = here.stroke && here.strokeWidth > 0
-  if (node.tag === 'path') {
-    if (stroked) throw new Unsupported('MathJax drew a stroked <path>, which texel does not draw')
-    if (here.fill) outlines.push(...outlinesOf(node.attrs.d ?? ''))
-  } else if (node.tag === 'polygon') {
-    if (stroked) throw new Unsupported('MathJax drew a stroked <polygon>, which texel does not draw')
-    const points = numbers(node.attrs.points, -1)
-    const corners = points.flatMap((_, j) => (j % 2 ? [] : [[points[j]!, points[j + 1]!] as Point]))
-    if (here.fill && corners.length > 2) outlines.push({ start: corners[0]!, segments: corners.slice(1).map(p => [p]) })
-  } else if (node.tag === 'rect') {
-    // A coloured background: the formula has one colour, and this would hide it.
-    if ('data-bgcolor' in node.attrs) return
-    const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(k => number(node, k, 0)) as [number, number, number, number]
-    if (here.fill) outlines.push(rectangle(x, y, x + width, y + height))
-    if (stroked) outlines.push(...frame(x, y, width, height, here.strokeWidth, dash))
-  } else if (node.tag === 'line') {
-    const [x1, y1, x2, y2] = ['x1', 'y1', 'x2', 'y2'].map(k => number(node, k, 0)) as [number, number, number, number]
-    if (stroked) outlines.push(...stroke([x1, y1], [x2, y2], here.strokeWidth, dash).outlines)
+  const fill = (outline: () => Outline[]) => (here.fill ? outline() : [])
+  switch (node.tag) {
+    case 'path':
+      if (stroked) throw new Unsupported('MathJax drew a stroked <path>, which texel does not draw')
+      return fill(() => outlinesOf(node.attrs.d ?? ''))
+    case 'polygon': {
+      if (stroked) throw new Unsupported('MathJax drew a stroked <polygon>, which texel does not draw')
+      const points = numbers(node.attrs.points, -1)
+      const corners = points.flatMap((_, j) => (j % 2 ? [] : [[points[j]!, points[j + 1]!] as Point]))
+      return corners.length > 2 ? fill(() => [{ start: corners[0]!, segments: corners.slice(1).map(p => [p]) }]) : []
+    }
+    case 'rect': {
+      // A coloured background: the formula has one colour, and this would hide it.
+      if ('data-bgcolor' in node.attrs) return []
+      const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(k => number(node, k, 0)) as [number, number, number, number]
+      return [...fill(() => [rectangle(x, y, x + width, y + height)]), ...(stroked ? frame(x, y, width, height, here.strokeWidth, dash) : [])]
+    }
+    case 'line': {
+      const [x1, y1, x2, y2] = ['x1', 'y1', 'x2', 'y2'].map(k => number(node, k, 0)) as [number, number, number, number]
+      return stroked ? stroke([x1, y1], [x2, y2], here.strokeWidth, dash).outlines : []
+    }
+    default:
+      return []
   }
-  if (outlines.length) shapes.push({ outlines: outlines.map(o => mapped(matrix, o)), clip: here.clip })
 }
 
 // `node`'s context: its transform and paint over its parent's, by attribute,
 // then MathJax's stylesheet, then its `style`, as CSS ranks them.
-function paint(node: SvgNode, parent: SvgNode, outer: Context): Context {
+function paint(at: At, outer: Context): Context {
+  const { node } = at
   const declared: Record<string, string> = {}
   for (const key of ['fill', 'stroke', 'stroke-width']) if (node.attrs[key] !== undefined) declared[key] = node.attrs[key]!
-  if (isRule(node, parent)) Object.assign(declared, { fill: 'none', 'stroke-width': String(STYLESHEET.rules.strokeWidth) })
+  if (STYLESHEET.rules.applies(at)) Object.assign(declared, { fill: 'none', 'stroke-width': String(STYLESHEET.rules.strokeWidth) })
   for (const [key, value] of declarations(node.attrs.style)) declared[key] = value
   const width = declared['stroke-width']
   return {
@@ -119,16 +152,6 @@ function paint(node: SvgNode, parent: SvgNode, outer: Context): Context {
     stroke: declared.stroke === undefined ? outer.stroke : declared.stroke !== 'none',
     strokeWidth: width === undefined ? outer.strokeWidth : parseLength(width),
   }
-}
-
-// A table's rule or frame, as MathJax's stylesheet picks them out.
-const isRule = (node: SvgNode, parent: SvgNode) =>
-  parent.attrs['data-mml-node'] === 'mtable' && ((node.tag === 'line' && 'data-line' in node.attrs) || (node.tag === 'rect' && 'data-frame' in node.attrs))
-
-function dashOf(node: SvgNode, parent: SvgNode): Dash | undefined {
-  if (parent.attrs['data-mml-node'] !== 'mtable') return undefined
-  const classes = (node.attrs.class ?? '').split(/\s+/)
-  return classes.includes('mjx-dashed') ? STYLESHEET.dashed : undefined
 }
 
 // The declarations of a `style` attribute that bear on drawing; the rest

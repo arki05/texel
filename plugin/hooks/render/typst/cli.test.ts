@@ -12,7 +12,7 @@ function compiler(answer: { exitCode: number; stderr?: string }) {
     runs.push({ argv, stdin })
     return { stdout: '', stderr: '', ...answer }
   }
-  return { typst: cliCompiler({ run, limiter: new Limiter(4), lib: '/lib', version: '0.15.1', library: 'abc' }), runs }
+  return { typst: cliCompiler({ run, limiter: new Limiter(4), libDir: '/lib', version: '0.15.1', libraryHash: 'abc' }), runs }
 }
 
 describe('cliCompiler', () => {

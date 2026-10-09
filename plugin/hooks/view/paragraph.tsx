@@ -23,7 +23,7 @@ function drawWrapped(ui: Ui, row: Line<Formula>, lead: RenderElement[]): RenderE
         </Box>
       ) : (
         <Box marginTop={row.above - piece.above}>
-          {image(ui, piece.box.picture, piece.columns, piece.box.rows, piece.box.source)}
+          {image(ui, piece.box, piece.box.source)}
         </Box>
       ),
     ),

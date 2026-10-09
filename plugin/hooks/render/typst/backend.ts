@@ -21,7 +21,7 @@ export type Io = {
 /** What the typst backend keeps between draws, for as long as the module is loaded. */
 export class TypstCache {
   /** Every run, by its key. */
-  readonly runs = new Memo()
+  readonly runs = new Memo<Rendered>()
   /**
    * Blocks drawn at their natural size, by their width-free program's key:
    * reused at any width they fit, so a resize needs no new picture.
@@ -52,9 +52,9 @@ const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPac
 export function typstBlocks(backend: TypstBackend, maxWidth: number, redraw: () => void): BlockRenderer {
   return async (typst, maxColumns) => {
     const job = { typst, maxColumns: Math.min(maxColumns, maxWidth) }
-    const known = await backend.known(job)
-    if (known) return known
-    void backend.fresh(job).then(redraw, redraw)
+    const ready = await backend.ready(job)
+    if (ready) return ready
+    void backend.render(job).then(redraw, redraw)
     return undefined
   }
 }
@@ -74,9 +74,9 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir, allow
     return failure
   }
 
-  // A PNG's size in cells. Shrunk to fit, one past the Image's limit would be
-  // a sliver, so that is a failure instead.
-  async function cells(file: string): Promise<Rendered | RenderFailure> {
+  // A PNG as a picture of whole cells. Shrunk to fit, one past the Image's
+  // limit would be a sliver, so that is a failure instead.
+  async function pictureOf(file: string): Promise<Rendered | RenderFailure> {
     const { width, height } = pngSize(await io.readBase64(file))
     const points = compiler.ppi / 72
     const columns = Math.max(1, Math.round(width / (style.grid.cellWidth * points)))
@@ -84,42 +84,46 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir, allow
     return tooLarge(columns, rows) ?? { picture: { file }, columns, rows }
   }
 
+  // Where a job's picture is: its program, the run's key and file, and the
+  // key a picture at its natural size is kept under, whatever the width.
+  async function locate(job: TypstJob) {
+    const drawing = program(job, style)
+    const key = await keyOf(drawing)
+    return { drawing, key, file: `${cacheDir}/${key}.png`, naturalKey: await keyOf(widthFree(drawing)) }
+  }
+
   // A block narrower than it was allowed was drawn at its natural size
-  // (texel.typ's typst-block draws a fitting figure at least a cell narrower).
-  async function noteNatural(job: TypstJob, drawing: Program, result: Rendered | RenderFailure) {
-    if (!isFailure(result) && result.columns < job.maxColumns) cache.natural.set(await keyOf(widthFree(drawing)), result)
+  // (texel.typ lays out a block that fits at its own width, a cell to spare).
+  function noteNatural(job: TypstJob, naturalKey: string, result: Rendered | RenderFailure) {
+    if (!isFailure(result) && result.columns < job.maxColumns) cache.natural.set(naturalKey, result)
   }
 
   return {
-    async known(job) {
+    async ready(job) {
       if (refused(job)) return PACKAGES_OFF
-      const drawing = program(job, style)
-      const natural = cache.natural.get(await keyOf(widthFree(drawing)))
+      const { key, file, naturalKey } = await locate(job)
+      const natural = cache.natural.get(naturalKey)
       if (natural && natural.columns <= job.maxColumns) return natural
-      const key = await keyOf(drawing)
-      const settled = cache.runs.get<Rendered>(key)
+      const settled = cache.runs.get(key)
       if (settled) return settled
-      const file = `${cacheDir}/${key}.png`
       if (!(await io.exists(file))) return undefined
-      const result = await cells(file)
+      const result = await pictureOf(file)
       cache.runs.settle(key, result)
-      await noteNatural(job, drawing, result)
+      noteNatural(job, naturalKey, result)
       return result
     },
 
-    async fresh(job) {
+    async render(job) {
       if (refused(job)) return PACKAGES_OFF
-      const drawing = program(job, style)
-      const key = await keyOf(drawing)
-      const result = await cache.runs.once<Rendered>(key, async () => {
-        const file = `${cacheDir}/${key}.png`
+      const { drawing, key, file, naturalKey } = await locate(job)
+      const result = await cache.runs.once(key, async () => {
         if (!(await io.exists(file))) {
           const failure = await compileWhole(drawing, file)
           if (failure) return failure
         }
-        return cells(file)
+        return pictureOf(file)
       })
-      await noteNatural(job, drawing, result)
+      noteNatural(job, naturalKey, result)
       return result
     },
   }

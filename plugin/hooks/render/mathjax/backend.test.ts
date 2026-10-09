@@ -5,7 +5,7 @@ import { decodePng } from '../png'
 import type { Rendered, RenderFailure } from '../result'
 import { createMathBackend, MathCache, type MathStyle } from './backend'
 
-const style: MathStyle = { grid: { cellWidth: 7.727, cellHeight: 17, xHeight: 7.08, baseline: 0.7727 }, color: 'b3bd5a', inlineScale: 1.2, macros: '' }
+const style: MathStyle = { grid: { cellWidth: 7.727, cellHeight: 17, xHeight: 7.08, baseline: 13.136 }, color: 'b3bd5a', inlineSize: 1.2, macros: '' }
 const backend = (overrides: Partial<MathStyle> = {}, cache = new MathCache()) => createMathBackend(cache, { ...style, ...overrides })
 
 // The RGBA bytes of a rendered picture.

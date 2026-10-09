@@ -4,7 +4,7 @@ import type { Ink } from '../geometry'
 import { fitInline } from './fit'
 
 // Ghostty's default cell; the baseline 13.14pt down a 17pt row.
-const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }
+const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }
 const fit = (ink: Ink, maxColumns = 90) => {
   const { above, below, placement } = fitInline(ink, grid, maxColumns)
   return { above, below, ...placement }

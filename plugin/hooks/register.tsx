@@ -10,7 +10,7 @@ import { cacheDir, drawsPictures, pruneCommand, themeFrom, typstFrom, type Machi
 import { gridFor } from './geometry'
 import { GUTTER, PROMPT_BACKGROUND, TEXT, type Theme } from './look'
 import { needsRender, parse } from './markdown/parse'
-import { PROMPT_SECTION, promptNote } from './prompt'
+import { noteText, PROMPT_SECTION } from './prompt'
 import { hash } from './render/hash'
 import { Limiter } from './render/typst/limit'
 import { layoutMessage } from './layout/message'
@@ -28,7 +28,7 @@ const LIB = 'hooks/render/typst'
 const MACROS = '.config/texel/macros.tex'
 
 /** What texel learns once per load: the machine, its typst, and texel.typ's fingerprint. */
-type Host = { machine: Machine; typst: TypstStatus; systemIsDark: boolean; library: string }
+type Host = { machine: Machine; typst: TypstStatus; systemIsDark: boolean; libraryHash: string }
 
 let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
@@ -49,34 +49,38 @@ function retried<T>(promise: Promise<T>, forget: () => void) {
   return promise
 }
 
+// Every promise of `named` awaited at once, each answer under its name.
+async function allOf<T extends Record<string, Promise<unknown>>>(named: T): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
+  const entries = await Promise.all(Object.entries(named).map(async ([name, promise]) => [name, await promise] as const))
+  return Object.fromEntries(entries) as { [K in keyof T]: Awaited<T[K]> }
+}
+
+// What a command prints, trimmed; undefined where it will not run.
+const output = ($: EngineInterface, argv: string[]) =>
+  $.process.run(argv).then(
+    result => result.stdout.trim(),
+    () => undefined,
+  )
+
 async function learnHost($: EngineInterface): Promise<Host> {
-  const [home, XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX, os, version, appearance, library] = await Promise.all([
-    $.env.get('HOME'),
-    $.env.get('XDG_CACHE_HOME'),
-    $.env.get('TERM'),
-    $.env.get('TERM_PROGRAM'),
-    $.env.get('KITTY_WINDOW_ID'),
-    $.env.get('TMUX'),
-    $.process.run(['uname', '-s']).then(
-      r => r.stdout.trim(),
-      () => '',
-    ),
-    $.process.run(['typst', '--version']).then(
-      r => r.stdout,
-      () => undefined,
-    ),
-    $.process.run(['defaults', 'read', '-g', 'AppleInterfaceStyle']).then(
-      r => r.stdout.trim(),
-      () => '',
-    ),
-    $.fs.read(`${$.plugin.root}/${LIB}/texel.typ`).then(hash),
-  ])
-  const machine: Machine = { home: home ?? '', os, env: { XDG_CACHE_HOME, TERM, TERM_PROGRAM, KITTY_WINDOW_ID, TMUX } }
+  const { home, os, typst, appearance, libraryHash, ...env } = await allOf({
+    home: $.env.get('HOME'),
+    XDG_CACHE_HOME: $.env.get('XDG_CACHE_HOME'),
+    TERM: $.env.get('TERM'),
+    TERM_PROGRAM: $.env.get('TERM_PROGRAM'),
+    KITTY_WINDOW_ID: $.env.get('KITTY_WINDOW_ID'),
+    TMUX: $.env.get('TMUX'),
+    os: output($, ['uname', '-s']),
+    typst: output($, ['typst', '--version']),
+    appearance: output($, ['defaults', 'read', '-g', 'AppleInterfaceStyle']),
+    libraryHash: $.fs.read(`${$.plugin.root}/${LIB}/texel.typ`).then(hash),
+  })
+  const machine: Machine = { home: home ?? '', os: os ?? '', env }
   await $.process.run(['mkdir', '-p', cacheDir(machine)])
   // Before any draw: pruning alongside one could remove a picture it just found.
   await $.process.run(pruneCommand(cacheDir(machine)))
   // Off macOS there is no system appearance to ask; dark is the terminal norm.
-  return { machine, typst: typstFrom(version), systemIsDark: os !== 'Darwin' || appearance === 'Dark', library }
+  return { machine, typst: typstFrom(typst), systemIsDark: machine.os !== 'Darwin' || appearance === 'Dark', libraryHash }
 }
 
 function hostOf($: EngineInterface) {
@@ -112,7 +116,7 @@ function typstRenderer($: EngineInterface, known: Host, style: TypstStyle, setti
   const run: Run = (argv, stdin) => $.process.run(argv, { stdin, timeoutMs: 20_000 })
   const backend = createTypstBackend({
     io: files($),
-    compiler: cliCompiler({ run, limiter: typstSlots, lib: `${$.plugin.root}/${LIB}`, version, library: known.library }),
+    compiler: cliCompiler({ run, limiter: typstSlots, libDir: `${$.plugin.root}/${LIB}`, version, libraryHash: known.libraryHash }),
     cache: typstCache,
     cacheDir: cacheDir(known.machine),
     style,
@@ -136,7 +140,7 @@ async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'Use
   const current = await themeOf($, known)
   const grid = gridFor(settings.font)
   const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
-  const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineScale: settings.inlineScale, macros })
+  const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineSize: settings.inlineSize, macros })
   const typst = typstRenderer($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings)
   const columns = (e.viewport?.columns ?? 100) - GUTTER - (isPrompt ? 2 : 0)
   const laid = await layoutMessage({ inline: math, blocks: { math: math.block, typst } }, segments, { grid, fit: settings.fit, columns })
@@ -175,7 +179,7 @@ export const register: Register = (on, options) => {
     const known = await hostOf($)
     if (!drawsPictures(settings.images, known.machine)) return composed
     const typst = 'version' in known.typst
-    const note = promptNote({ typst, packages: settings.typstPackages, theme: await themeOf($, known) })
+    const note = noteText({ typst, packages: settings.typstPackages, theme: await themeOf($, known) })
     const section = { id: PROMPT_SECTION, text: note, scope: 'session' as const }
     return { sections: [...composed.sections, section] }
   })

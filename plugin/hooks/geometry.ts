@@ -1,6 +1,6 @@
 // The geometry texel lays things out in: the terminal's cell grid and font,
-// a formula's ink, and where a formula is placed in its cells. Shared by
-// layout, rendering and the view; it depends on nothing.
+// a formula's ink, and the limits of a picture. Shared by layout, rendering
+// and the view; it depends on nothing.
 
 /** The terminal's grid and font, in points: what every picture is fitted to. */
 export type Grid = {
@@ -8,19 +8,12 @@ export type Grid = {
   cellHeight: number
   /** The terminal font's x-height; math is sized against it. */
   xHeight: number
-  /** Where the baseline sits in a row, as a fraction of it from the top. */
+  /** How far down a row its baseline sits. */
   baseline: number
 }
 
 /** A formula's ink at its natural size, in points: its width, and its reach above and below the baseline. */
 export type Ink = { width: number; above: number; below: number }
-
-/**
- * Where an inline formula is drawn: its box in cells, its scale, its ink's
- * offset down the box (pt), and which side of the box the ink keeps to,
- * centred if neither.
- */
-export type Placement = { columns: number; rows: number; scale: number; dy: number; side?: 'left' | 'right' }
 
 /**
  * Pixels per point a picture is made at, full size: 216 ppi, sharp at the
@@ -78,5 +71,5 @@ export type FontName = keyof typeof FONTS
 const CELL_HEIGHT = 17
 
 export function gridFor({ aspect, xHeight, baseline }: TerminalFont): Grid {
-  return { cellWidth: CELL_HEIGHT / aspect, cellHeight: CELL_HEIGHT, xHeight: xHeight * CELL_HEIGHT, baseline }
+  return { cellWidth: CELL_HEIGHT / aspect, cellHeight: CELL_HEIGHT, xHeight: xHeight * CELL_HEIGHT, baseline: baseline * CELL_HEIGHT }
 }

@@ -3,6 +3,7 @@
 // typst is installed, which theme applies. Pure: facts in, decisions out.
 
 import type { Theme } from './look'
+import type { Settings } from './settings'
 
 /** The facts the hooks module reads once per load. */
 export type Machine = {
@@ -38,7 +39,7 @@ export function showsImages({ env }: Machine) {
 }
 
 /** Whether texel draws pictures: as the `images` setting says, `auto` where the terminal shows them. */
-export function drawsPictures(images: 'auto' | 'always' | 'never', machine: Machine) {
+export function drawsPictures(images: Settings['images'], machine: Machine) {
   return images === 'always' || (images === 'auto' && showsImages(machine))
 }
 

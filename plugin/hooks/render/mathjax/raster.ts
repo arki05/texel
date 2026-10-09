@@ -46,33 +46,49 @@ const FLATNESS = 0.1
 const INK = 8
 
 /** `drawing` filled at `pxPerEm` pixels to the em, in colour `rgb`. */
-export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: readonly [number, number, number]): Raster {
+export function rasterize(drawing: Drawing, pxPerEm: number, rgb: readonly [number, number, number]): Raster {
   const k = pxPerEm / 1000
-  const toPixels = ([x, y]: Point): Point => [(x - viewBox.left) * k, (y - viewBox.top) * k]
+  const { viewBox } = drawing
   const box = { left: 0, top: 0, right: (viewBox.right - viewBox.left) * k, bottom: (viewBox.bottom - viewBox.top) * k }
-  // Ink is drawn up to an em beyond the viewBox (an italic overhang), no
-  // further: \rlap{\hspace{1e6em}x} would otherwise ask for a canvas a
-  // million ems wide around a formula a few wide.
-  const reach = { left: -pxPerEm, top: -pxPerEm, right: box.right + pxPerEm, bottom: box.bottom + pxPerEm }
-  const filled = shapes.map(({ outlines, clip }) => {
-    const [a, b] = clip ? [toPixels([clip.left, clip.top]), toPixels([clip.right, clip.bottom])] : [[-Infinity, -Infinity], [Infinity, Infinity]]
-    const within = { left: Math.max(reach.left, a[0]), top: Math.max(reach.top, a[1]), right: Math.min(reach.right, b[0]), bottom: Math.min(reach.bottom, b[1]) }
-    return outlines.map(o => clipped(polygonOf(o, toPixels), within)).filter(p => p.length > 2)
-  })
-
+  const filled = polygonsOf(drawing, k, box)
   // The canvas holds the viewBox and the ink around it, with a pixel to
   // spare, so no edge ever lands outside the buffer.
   const bounds = boundsOf(filled.flat(2), box)
   const [ox, oy] = [Math.floor(bounds.left) - 1, Math.floor(bounds.top) - 1]
-  const width = Math.ceil(bounds.right) - ox + 1
-  const height = Math.ceil(bounds.bottom) - oy + 1
+  const canvas: Canvas = { ox, oy, width: Math.ceil(bounds.right) - ox + 1, height: Math.ceil(bounds.bottom) - oy + 1 }
+  const { rgba, ink } = paint(coverage(filled, canvas), canvas, rgb)
+  return { width: canvas.width, height: canvas.height, rgba, origin: { x: -ox, y: -oy }, baseline: -viewBox.top * k - oy, ink }
+}
 
-  // Signed area per pixel, a spare cell at each row's end for an edge's remainder;
-  // each shape's is swept into `alpha` and cleared before the next.
+/** Pixels `width` x `height`, the drawing's pixel coordinates `ox`, `oy` at their top-left. */
+type Canvas = { ox: number; oy: number; width: number; height: number }
+
+// Each shape as polygons in pixels (the viewBox's corner at 0, 0, `k`
+// pixels to a unit), cut to its clip box. Ink is drawn up to an em beyond
+// the viewBox (an italic overhang), no further: \rlap{\hspace{1e6em}x}
+// would otherwise ask for a canvas a million ems wide around a formula a
+// few wide.
+function polygonsOf({ viewBox, shapes }: Drawing, k: number, box: Box): Point[][][] {
+  const toPixels = ([x, y]: Point): Point => [(x - viewBox.left) * k, (y - viewBox.top) * k]
+  const em = 1000 * k
+  const reach = { left: -em, top: -em, right: box.right + em, bottom: box.bottom + em }
+  return shapes.map(({ outlines, clip }) => {
+    const [a, b] = clip ? [toPixels([clip.left, clip.top]), toPixels([clip.right, clip.bottom])] : [[-Infinity, -Infinity], [Infinity, Infinity]]
+    const within = { left: Math.max(reach.left, a[0]), top: Math.max(reach.top, a[1]), right: Math.min(reach.right, b[0]), bottom: Math.min(reach.bottom, b[1]) }
+    return outlines.map(o => clipped(polygonOf(o, toPixels), within)).filter(p => p.length > 2)
+  })
+}
+
+// How much of each pixel the shapes cover, 0 to 1: each shape's signed area
+// accumulated by its edges, swept along each row into coverage, and laid
+// over what the shapes before it covered.
+function coverage(shapes: Point[][][], { ox, oy, width, height }: Canvas): Float32Array {
+  // A spare cell at each row's end for an edge's remainder; each shape's
+  // area is cleared as it is swept, ready for the next.
   const stride = width + 2
   const area = new Float32Array(stride * height)
   const alpha = new Float32Array(width * height)
-  for (const polygons of filled) {
+  for (const polygons of shapes) {
     if (!polygons.length) continue
     for (const polygon of polygons) {
       polygon.forEach((p, j) => {
@@ -91,7 +107,11 @@ export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: re
       }
     }
   }
+  return alpha
+}
 
+// Coverage as RGBA pixels in `rgb`, and the box of those inked enough to count (INK).
+function paint(alpha: Float32Array, { width, height }: Canvas, rgb: readonly [number, number, number]) {
   const rgba = new Uint8Array(width * height * 4)
   let ink: Box | undefined
   for (let row = 0; row < height; row++) {
@@ -105,7 +125,7 @@ export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: re
         : { top: row, bottom: row + 1, left: x, right: x + 1 }
     }
   }
-  return { width, height, rgba, origin: { x: -ox, y: -oy }, baseline: -viewBox.top * k - oy, ink }
+  return { rgba, ink }
 }
 
 // The box around `points`, and around `start` if given.

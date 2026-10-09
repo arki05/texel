@@ -2,8 +2,8 @@
 // engine can draw as-is and what texel should turn into pictures. Pure: no
 // `$`, no I/O.
 
-/** How a run of text is drawn; `dim` is texel's own, for notes. */
-export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean; dim?: boolean }
+/** How a run of text is drawn. */
+export type TextStyle = { bold?: boolean; italic?: boolean; code?: boolean }
 
 /** Prose, or a formula: its TeX, and its source as written (`$x$`, `\(x\)`), which a failed one shows. */
 export type Atom = ({ kind: 'text'; text: string } & TextStyle) | { kind: 'math'; tex: string; source: string }
@@ -14,7 +14,6 @@ export type InlineLine = {
   /** A quote's line, whose bar is drawn dim. */
   quote?: true
   indent: number
-  heading: boolean
   atoms: Atom[]
 }
 
@@ -38,10 +37,10 @@ const UNESCAPED = String.raw`(?<=(?:^|[^\\])(?:\\\\)*)`
 
 // `$…$` follows pandoc's rule: no space just inside either dollar, and no digit
 // right after the closing one, so "$5 and $10" stays prose; `\$` is a dollar.
-const INLINE_DOLLAR = String.raw`(?<![\\$\w])\$(?=[^\s$])((?:\\\$|[^$\n])+?)(?<=[^\s\\])\$(?![\d$])`
+const INLINE_DOLLAR = String.raw`(?<![\\$\w])\$(?=[^\s$])(?<dollar>(?:\\\$|[^$\n])+?)(?<=[^\s\\])\$(?![\d$])`
 // One lazy run to the closer, so a line of unclosed `\(` costs linear time
 // at each; `\( \)` around nothing but spaces is left as text (tokenizeProse).
-const INLINE_PAREN = String.raw`${UNESCAPED}\\\(([^\n]*?)\\\)`
+const INLINE_PAREN = String.raw`${UNESCAPED}\\\((?<paren>[^\n]*?)\\\)`
 const HAS_INLINE = new RegExp(`${INLINE_DOLLAR}|${INLINE_PAREN}`)
 // Display math is always a block of its own, as in LaTeX: mid-sentence it splits
 // the paragraph. It never crosses a blank line, so one stray `$$` cannot swallow
@@ -52,16 +51,16 @@ const DISPLAY = new RegExp(String.raw`(?<!\\)\$\$${NO_BREAK}+?\$\$|${UNESCAPED}\
 // A code span, like display math, ends at a paragraph break.
 const CODE_SPAN = new RegExp(String.raw`(\x60+)([^\x60]${NO_BREAK}*?)\1(?!\x60)`, 'g')
 
-// Emphasis and links; a delimiter escaped with a backslash is no delimiter.
+// Math, emphasis and links; a delimiter escaped with a backslash is no delimiter.
 const TOKEN = new RegExp(
   [
-    INLINE_PAREN, // 1
-    INLINE_DOLLAR, // 2
-    String.raw`(?<!\\)\*\*(.+?)(?<!\\)\*\*`, // 3 bold
-    String.raw`(?<!\\)__(.+?)(?<!\\)__`, // 4 bold
-    String.raw`(?<![\\\w*])\*(?![\s*])(.+?)(?<![\s\\])\*(?![\w*])`, // 5 italic
-    String.raw`(?<![\\\w_])_(?![\s_])(.+?)(?<![\s\\])_(?![\w_])`, // 6 italic
-    String.raw`(?<!\\)\[([^\]]+)\]\([^)]+\)`, // 7 link text
+    INLINE_PAREN,
+    INLINE_DOLLAR,
+    String.raw`(?<!\\)\*\*(?<bold>.+?)(?<!\\)\*\*`,
+    String.raw`(?<!\\)__(?<boldUnderscored>.+?)(?<!\\)__`,
+    String.raw`(?<![\\\w*])\*(?![\s*])(?<italic>.+?)(?<![\s\\])\*(?![\w*])`,
+    String.raw`(?<![\\\w_])_(?![\s_])(?<italicUnderscored>.+?)(?<![\s\\])_(?![\w_])`,
+    String.raw`(?<!\\)\[(?<link>[^\]]+)\]\([^)]+\)`,
   ].join('|'),
   'g',
 )
@@ -80,14 +79,15 @@ function tokenizeProse(text: string, style: Emphasis): Atom[] {
   for (const m of text.matchAll(TOKEN)) {
     pushText(text.slice(last, m.index))
     last = m.index + m[0].length
-    if (m[1] !== undefined || m[2] !== undefined) {
-      const tex = (m[1] ?? m[2])!.trim()
-      if (tex) atoms.push({ kind: 'math', tex, source: m[0] })
-      else pushText(m[0])
-    }
-    else if (m[3] !== undefined || m[4] !== undefined) atoms.push(...tokenizeProse((m[3] ?? m[4])!, { ...style, bold: true }))
-    else if (m[5] !== undefined || m[6] !== undefined) atoms.push(...tokenizeProse((m[5] ?? m[6])!, { ...style, italic: true }))
-    else if (m[7] !== undefined) atoms.push(...tokenizeProse(m[7], style))
+    const { paren, dollar, bold, boldUnderscored, italic, italicUnderscored, link } = m.groups!
+    const tex = (paren ?? dollar)?.trim()
+    const strong = bold ?? boldUnderscored
+    const emphasis = italic ?? italicUnderscored
+    if (tex) atoms.push({ kind: 'math', tex, source: m[0] })
+    else if (tex === '') pushText(m[0])
+    else if (strong !== undefined) atoms.push(...tokenizeProse(strong, { ...style, bold: true }))
+    else if (emphasis !== undefined) atoms.push(...tokenizeProse(emphasis, { ...style, italic: true }))
+    else if (link !== undefined) atoms.push(...tokenizeProse(link, style))
   }
   pushText(text.slice(last))
   return atoms
@@ -139,26 +139,21 @@ function paragraphLines(paragraph: string): InlineLine[] {
     else if (last && !last.heading && raw.trim()) last.text += ` ${raw.trim()}`
     else if (raw.trim()) lines.push({ prefix: '', indent: 0, heading: false, text: raw.trim() })
   }
-  return lines.map(({ text, ...rest }) => ({ ...rest, atoms: tokenize(text, rest.heading ? { bold: true } : {}) }))
+  // A heading's line is set in bold.
+  return lines.map(({ text, heading, ...rest }) => ({ ...rest, atoms: tokenize(text, heading ? { bold: true } : {}) }))
 }
 
-function proseSegments(text: string, out: Segment[]) {
-  for (const paragraph of text.split(/\n[ \t]*\n/)) {
-    if (!paragraph.trim()) continue
-    const lines = hasInlineMath(paragraph) && isLayoutable(paragraph) ? paragraphLines(paragraph) : []
-    // Only math that will render earns our own layout; the rest is the engine's.
-    if (lines.some(line => line.atoms.some(atom => atom.kind === 'math'))) {
-      out.push({ kind: 'paragraph', lines, source: paragraph })
-    } else {
-      pushMarkdown(out, paragraph)
-    }
-  }
-}
-
-function pushMarkdown(out: Segment[], text: string) {
-  const prev = out[out.length - 1]
-  if (prev?.kind === 'markdown') prev.text += `\n\n${text}`
-  else out.push({ kind: 'markdown', text })
+// Prose, paragraph by paragraph: its own layout where it holds math that
+// will render, the engine's markdown otherwise.
+function proseSegments(text: string): Segment[] {
+  return text
+    .split(/\n[ \t]*\n/)
+    .filter(paragraph => paragraph.trim())
+    .map((paragraph): Segment => {
+      const lines = hasInlineMath(paragraph) && isLayoutable(paragraph) ? paragraphLines(paragraph) : []
+      const hasMath = lines.some(line => line.atoms.some(atom => atom.kind === 'math'))
+      return hasMath ? { kind: 'paragraph', lines, source: paragraph } : { kind: 'markdown', text: paragraph }
+    })
 }
 
 // Code spans blanked out at equal length, so delimiters inside them never match
@@ -167,17 +162,29 @@ function maskCode(text: string) {
   return text.replace(CODE_SPAN, span => '\uE000'.repeat(span.length))
 }
 
-function nonFenced(text: string, out: Segment[]) {
+// Text outside fences: its display math, each a block, and the prose around it.
+function nonFenced(text: string): Segment[] {
+  const out: Segment[] = []
   let last = 0
   for (const m of maskCode(text).matchAll(DISPLAY)) {
     const source = text.slice(m.index, m.index + m[0].length)
     const tex = source.trim().slice(2, -2).trim()
     if (!tex) continue
-    proseSegments(text.slice(last, m.index), out)
+    out.push(...proseSegments(text.slice(last, m.index)), { kind: 'block', renderer: 'math', body: tex, source })
     last = m.index + m[0].length
-    out.push({ kind: 'block', renderer: 'math', body: tex, source })
   }
-  proseSegments(text.slice(last), out)
+  return [...out, ...proseSegments(text.slice(last))]
+}
+
+// Neighbouring markdown segments as one, as the engine would draw them.
+function joinMarkdown(segments: Segment[]): Segment[] {
+  const out: Segment[] = []
+  for (const segment of segments) {
+    const prev = out.at(-1)
+    if (segment.kind === 'markdown' && prev?.kind === 'markdown') out[out.length - 1] = { kind: 'markdown', text: `${prev.text}\n\n${segment.text}` }
+    else out.push(segment)
+  }
+  return out
 }
 
 export function parse(reply: string): Segment[] {
@@ -187,23 +194,18 @@ export function parse(reply: string): Segment[] {
   const fence = /^([ \t]*)(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)^\1\2[ \t]*$/gm
   let last = 0
   for (const m of text.matchAll(fence)) {
-    nonFenced(text.slice(last, m.index), out)
+    out.push(...nonFenced(text.slice(last, m.index)))
     last = m.index + m[0].length
     const lang = (m[3] ?? '').toLowerCase()
     const renderer = Object.hasOwn(FENCES, lang) ? FENCES[lang] : undefined
-    if (renderer) out.push({ kind: 'block', renderer, body: (m[4] ?? '').replace(/\n$/, ''), source: m[0] })
-    else pushMarkdown(out, m[0])
+    out.push(renderer ? { kind: 'block', renderer, body: (m[4] ?? '').replace(/\n$/, ''), source: m[0] } : { kind: 'markdown', text: m[0] })
   }
   // A fence still streaming in has no close yet: keep it, and what follows, as source.
   const rest = text.slice(last)
   const open = rest.match(/^[ \t]*(`{3,}|~{3,})/m)
-  if (open) {
-    nonFenced(rest.slice(0, open.index), out)
-    pushMarkdown(out, rest.slice(open.index))
-  } else {
-    nonFenced(rest, out)
-  }
-  return out
+  if (open) out.push(...nonFenced(rest.slice(0, open.index)), { kind: 'markdown', text: rest.slice(open.index) })
+  else out.push(...nonFenced(rest))
+  return joinMarkdown(out)
 }
 
 /** Whether anything in `segments` needs rendering. */

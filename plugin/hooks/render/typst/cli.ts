@@ -14,11 +14,11 @@ export type CliOptions = {
   /** Shared by every draw, so the cap holds across the session. */
   limiter: Limiter
   /** The folder holding texel.typ. */
-  lib: string
+  libDir: string
   /** `typst --version`'s version: part of what makes the output. */
   version: string
   /** A hash of texel.typ: the rest of what makes it. */
-  library: string
+  libraryHash: string
 }
 
 const PPI = PX_PER_PT * 72
@@ -31,15 +31,15 @@ function complaint(stderr: string): RenderFailure {
   return { error: lines.slice(Math.max(first, 0)).slice(0, 6).join('\n') }
 }
 
-export function cliCompiler({ run, limiter, lib, version, library }: CliOptions): Compiler {
+export function cliCompiler({ run, limiter, libDir, version, libraryHash }: CliOptions): Compiler {
   return {
-    id: `typst-cli ${version} ppi ${PPI} texel.typ ${library}`,
+    id: `typst-cli ${version} ppi ${PPI} texel.typ ${libraryHash}`,
     ppi: PPI,
 
     async compile(program, out) {
       const inputs = Object.entries(program.inputs).flatMap(([name, value]) => ['--input', `${name}=${value}`])
       // The format said, not read off `out`, which may be a temporary name.
-      const argv = ['typst', 'compile', '--root', lib, ...inputs, '--format', 'png', '--ppi', String(PPI), '-', out]
+      const argv = ['typst', 'compile', '--root', libDir, ...inputs, '--format', 'png', '--ppi', String(PPI), '-', out]
       const result = await limiter.run(() => run(argv, program.source))
       return result.exitCode === 0 ? undefined : complaint(result.stderr)
     },

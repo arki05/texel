@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { cells, wrap, type Piece } from './wrap'
+import { textColumns, wrap, type Piece } from './wrap'
 
 const text = (t: string): Piece<string> => ({ kind: 'text', text: t })
 const box = (columns: number, above = 0, below = 0): Piece<string> => ({ kind: 'box', columns, above, below, box: 'f' })
@@ -38,8 +38,8 @@ describe('wrap', () => {
   })
 
   test('wide characters take two cells', () => {
-    expect(cells('日本')).toBe(4)
-    expect(cells('ab')).toBe(2)
+    expect(textColumns('日本')).toBe(4)
+    expect(textColumns('ab')).toBe(2)
   })
 
   test('styles survive and neighbours of one style merge', () => {

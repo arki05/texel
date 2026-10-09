@@ -5,7 +5,8 @@
 import type { TextStyle } from '../markdown/parse'
 
 export type Piece<Box> =
-  | ({ kind: 'text'; text: string } & TextStyle)
+  /** Text, `dim` for texel's own notes. */
+  | ({ kind: 'text'; text: string; dim?: boolean } & TextStyle)
   /** A formula: `columns` wide, with `above`/`below` rows beyond the text's. */
   | { kind: 'box'; columns: number; above: number; below: number; box: Box }
 
@@ -20,7 +21,7 @@ export type Line<Box> = {
 const WIDE = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦\u{1f300}-\u{1faff}\u{20000}-\u{3fffd}]/u
 
 /** How many terminal cells `text` covers. */
-export function cells(text: string) {
+export function textColumns(text: string) {
   let n = 0
   for (const char of text) n += WIDE.test(char) ? 2 : 1
   return n
@@ -36,7 +37,7 @@ function tokens<Box>(pieces: Piece<Box>[]): Token<Box>[] {
     return piece.text.split(/(?<=\s)(?=\S)/).map(word => {
       const text = word.replace(/\s+/g, ' ')
       const bare = text.trimEnd()
-      return { piece: { ...piece, text }, width: cells(bare), space: text.length - bare.length }
+      return { piece: { ...piece, text }, width: textColumns(bare), space: text.length - bare.length }
     })
   })
 }
@@ -47,13 +48,13 @@ function cut<Box>(token: Token<Box>, width: number): Token<Box>[] {
   const parts: Token<Box>[] = []
   let part = ''
   for (const char of token.piece.text) {
-    if (cells(part + char) > width) {
-      parts.push({ piece: { ...token.piece, text: part }, width: cells(part), space: 0 })
+    if (textColumns(part + char) > width) {
+      parts.push({ piece: { ...token.piece, text: part }, width: textColumns(part), space: 0 })
       part = ''
     }
     part += char
   }
-  return [...parts, { piece: { ...token.piece, text: part }, width: cells(part.trimEnd()), space: 0 }]
+  return [...parts, { piece: { ...token.piece, text: part }, width: textColumns(part.trimEnd()), space: 0 }]
 }
 
 // Neighbouring words of one style become one piece.

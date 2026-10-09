@@ -6,7 +6,7 @@
 import { blockCells, MIN_READABLE, PX_PER_PT, type Grid, type Ink } from '../../geometry'
 import { toBase64 } from '../base64'
 import { encodePng } from '../png'
-import type { BlockRenderer, InlineRenderer } from '../renderer'
+import type { BlockRenderer, InlineRenderer, Side } from '../renderer'
 import { isFailure, TOO_WIDE, tooLarge, type Rendered, type RenderFailure } from '../result'
 import { accented } from './accents'
 import { drawingOf } from './drawing'
@@ -14,7 +14,7 @@ import { rasterize, type Box, type Drawing, type Raster } from './raster'
 import { createTex, type Tex } from './vendor/mathjax-entry.js'
 
 /** How LaTeX is set: on which grid, in what colour (six hex digits), at what inline size, with which macros. */
-export type MathStyle = { grid: Grid; color: string; inlineScale: number; macros: string }
+export type MathStyle = { grid: Grid; color: string; inlineSize: number; macros: string }
 
 /** The x-height of MathJax's TeX font, in em: math is sized so it matches the terminal's. */
 const X_HEIGHT = 0.442
@@ -146,8 +146,8 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
   }
 
   // `raster`'s ink as a PNG of `columns` x `rows` cells: against `side` or
-  // centred across, and `y` pixels down or, without, centred down too.
-  function picture(raster: Inked, columns: number, rows: number, y?: number, side?: 'left' | 'right'): Rendered | RenderFailure {
+  // centred across, and `dy` points down or, without, centred down too.
+  function picture(raster: Inked, { columns, rows, dy, side }: { columns: number; rows: number; dy?: number; side?: Side }): Rendered | RenderFailure {
     const refused = tooLarge(columns, rows)
     if (refused) return refused
     const width = Math.round(columns * grid.cellWidth * PX_PER_PT)
@@ -155,7 +155,8 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     const { top, bottom, left, right } = raster.ink
     const slack = width - (right - left)
     const x = side === 'left' ? 0 : side === 'right' ? slack : Math.round(slack / 2)
-    const pixels = place(raster, width, height, x, y ?? Math.round((height - (bottom - top)) / 2))
+    const y = dy === undefined ? Math.round((height - (bottom - top)) / 2) : Math.round(dy * PX_PER_PT)
+    const pixels = place(raster, width, height, x, y)
     return { picture: { png: toBase64(encodePng(pixels, width, height)) }, columns, rows }
   }
 
@@ -169,7 +170,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
   return {
     async ink(source) {
       return remembered(['ink', source], () => {
-        const r = inked(source, false, style.inlineScale)
+        const r = inked(source, false, style.inlineSize)
         return isFailure(r) ? r : inkOf(r)
       })
     },
@@ -177,9 +178,8 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     // As fitted: `scale` of its natural size, its ink `dy` points down its box.
     async picture(source, placement) {
       return remembered(['inline', source, placement], () => {
-        const { columns, rows, scale, dy, side } = placement
-        const r = inked(source, false, style.inlineScale * scale)
-        return isFailure(r) ? r : picture(r, columns, rows, Math.round(dy * PX_PER_PT), side)
+        const r = inked(source, false, style.inlineSize * placement.scale)
+        return isFailure(r) ? r : picture(r, placement)
       })
     },
 
@@ -200,8 +200,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
         const r = inked(source, true, scale)
         if (isFailure(r)) return r
         const ink = inkOf(r)
-        const { columns, rows } = blockCells(grid, ink.width, ink.above + ink.below)
-        return picture(r, columns, rows)
+        return picture(r, blockCells(grid, ink.width, ink.above + ink.below))
       })
     },
   }

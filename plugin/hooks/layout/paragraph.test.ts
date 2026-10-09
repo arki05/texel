@@ -5,7 +5,7 @@ import type { InlineRenderer } from '../render/renderer'
 import { DEFAULT_FIT } from './fit'
 import { layoutParagraph } from './paragraph'
 
-const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }
+const grid = { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }
 
 // MathJax as far as layout sees it: each formula's ink, and any placement drawn as asked.
 const answers = (inks: Record<string, Ink>): InlineRenderer => ({
@@ -17,7 +17,7 @@ const texts = (laid: Awaited<ReturnType<typeof layoutParagraph>>) =>
   laid!.flatMap(line => line.rows.flatMap(row => row.pieces.map(piece => (piece.kind === 'text' ? piece.text : `[${piece.box.source}]`))))
 
 describe('layoutParagraph', () => {
-  const line = (tex: string) => [{ prefix: '', indent: 0, heading: false, atoms: [{ kind: 'text', text: 'see ' } as const, { kind: 'math', tex, source: `$${tex}$` } as const] }]
+  const line = (tex: string) => [{ prefix: '', indent: 0, atoms: [{ kind: 'text', text: 'see ' } as const, { kind: 'math', tex, source: `$${tex}$` } as const] }]
 
   test('a formula that fits the line is drawn', async () => {
     const laid = await layoutParagraph(answers({ x: { width: 8, above: 7.9, below: 0.2 } }), line('x'), { grid, fit: DEFAULT_FIT, columns: 40 })
@@ -42,7 +42,7 @@ describe('layoutParagraph', () => {
     const text = (t: string) => ({ kind: 'text', text: t }) as const
     const math = (tex: string) => ({ kind: 'math', tex, source: `\\(${tex}\\)` }) as const
     const atoms = [text('so '), math('a'), text(': then '), math('b'), text(' and ('), math('c'), text(' x ('), math('d'), text(').')]
-    await layoutParagraph(recording, [{ prefix: '', indent: 0, heading: false, atoms }], { grid, fit: DEFAULT_FIT, columns: 80 })
+    await layoutParagraph(recording, [{ prefix: '', indent: 0, atoms }], { grid, fit: DEFAULT_FIT, columns: 80 })
     expect(sides).toEqual({ a: 'right', b: undefined, c: 'left', d: undefined })
   })
 })

@@ -3,7 +3,7 @@
 
 import type { Elements, RenderElement } from 'claude-code'
 
-import type { Picture } from '../render/result'
+import type { Rendered } from '../render/result'
 
 /** The terminal surface's elements, which every part of the view draws with. */
 export type Ui = Elements['terminal']
@@ -12,7 +12,7 @@ export type Ui = Elements['terminal']
  * A picture at its own size. An Image is scaled to whatever box it gets, so
  * its box never shrinks; past the edge (mid-resize, say) it is clipped instead.
  */
-export function image(ui: Ui, picture: Picture, columns: number, rows: number, alt: string): RenderElement {
+export function image(ui: Ui, { picture, columns, rows }: Rendered, alt: string): RenderElement {
   const { Box, Image } = ui
   return (
     <Box flexShrink={0}>

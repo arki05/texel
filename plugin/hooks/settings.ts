@@ -16,7 +16,7 @@ export type Settings = {
   mathColor?: string
   typstColor?: string
   /** Inline math's size: 1 matches the text's x-height. */
-  inlineScale: number
+  inlineSize: number
   fit: FitOptions
   /** The terminal font's proportions: a preset's, or the person's own. */
   font: TerminalFont
@@ -76,7 +76,7 @@ export function readSettings(options: PluginOptions): Settings {
   return {
     mathColor: color(options, 'mathColor'),
     typstColor: color(options, 'typstColor'),
-    inlineScale: number(options, 'inlineSize', 1.2, 0.5, 3),
+    inlineSize: number(options, 'inlineSize', 1.2, 0.5, 3),
     fit: {
       maxScale: number(options, 'inlineMaxScale', DEFAULT_FIT.maxScale, 1, 3),
       minScale: number(options, 'inlineMinScale', DEFAULT_FIT.minScale, 0.1, 1),

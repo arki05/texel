@@ -5,7 +5,7 @@ import { createTypstBackend, TypstCache, type Io } from './backend'
 import type { Compiler } from './compiler'
 import type { TypstStyle } from './program'
 
-const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 0.773 }, color: 'e6e6e6' }
+const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6' }
 
 // A PNG's first 24 bytes, for a picture `columns` x `rows` cells at 216 ppi.
 function png(columns: number, rows: number) {
@@ -55,21 +55,21 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
 const block = (maxColumns = 80) => ({ typst: 'figure', maxColumns }) as const
 
 describe('typst backend', () => {
-  test('known answers nothing before a run, and everything after one', async () => {
+  test('ready answers nothing before a run, and everything after one', async () => {
     const { backend, calls } = world()
     const b = backend()
-    expect(await b.known(block())).toBe(undefined)
-    expect(await b.fresh(block())).toMatchObject({ columns: 4, rows: 2 })
-    expect(await b.known(block())).toMatchObject({ columns: 4, rows: 2 })
+    expect(await b.ready(block())).toBe(undefined)
+    expect(await b.render(block())).toMatchObject({ columns: 4, rows: 2 })
+    expect(await b.ready(block())).toMatchObject({ columns: 4, rows: 2 })
     expect(calls.compile).toBe(1)
   })
 
   test('a picture already on disk is known without a run, and read once', async () => {
     const { backend, calls } = world()
-    await backend().fresh(block())
+    await backend().render(block())
     const later = backend(new TypstCache())
-    expect(await later.known(block())).toMatchObject({ columns: 4 })
-    expect(await later.known(block())).toMatchObject({ columns: 4 })
+    expect(await later.ready(block())).toMatchObject({ columns: 4 })
+    expect(await later.ready(block())).toMatchObject({ columns: 4 })
     expect(calls.compile).toBe(1)
     expect(calls.read).toBe(2)
   })
@@ -78,9 +78,9 @@ describe('typst backend', () => {
     const { backend, calls, failWith } = world()
     failWith(() => Promise.resolve({ error: 'error: unclosed delimiter' }))
     const b = backend()
-    expect(await b.fresh(block())).toEqual({ error: 'error: unclosed delimiter' })
-    expect(await b.known(block())).toEqual({ error: 'error: unclosed delimiter' })
-    await b.fresh(block())
+    expect(await b.render(block())).toEqual({ error: 'error: unclosed delimiter' })
+    expect(await b.ready(block())).toEqual({ error: 'error: unclosed delimiter' })
+    await b.render(block())
     expect(calls.compile).toBe(1)
   })
 
@@ -88,27 +88,27 @@ describe('typst backend', () => {
     const { backend, calls, failWith } = world()
     failWith(() => Promise.reject(new Error('interrupted')) as never)
     const b = backend()
-    expect(await b.fresh(block())).toEqual({ error: 'Error: interrupted' })
-    expect(await b.known(block())).toBe(undefined)
-    expect(await b.fresh(block())).toEqual({ error: 'Error: interrupted' })
-    expect(await b.known(block())).toEqual({ error: 'Error: interrupted' })
-    await b.fresh(block())
+    expect(await b.render(block())).toEqual({ error: 'Error: interrupted' })
+    expect(await b.ready(block())).toBe(undefined)
+    expect(await b.render(block())).toEqual({ error: 'Error: interrupted' })
+    expect(await b.ready(block())).toEqual({ error: 'Error: interrupted' })
+    await b.render(block())
     expect(calls.compile).toBe(2)
   })
 
   test('a block drawn at its natural size is reused at any width it fits', async () => {
     const { backend, calls } = world({ size: [10, 3] })
     const b = backend()
-    await b.fresh(block(80))
-    expect(await b.known(block(40))).toMatchObject({ columns: 10 })
-    expect(await b.known(block(8))).toBe(undefined)
+    await b.render(block(80))
+    expect(await b.ready(block(40))).toMatchObject({ columns: 10 })
+    expect(await b.ready(block(8))).toBe(undefined)
     expect(calls.compile).toBe(1)
   })
 
   test('the compiler is part of every key: another typst never serves its pictures', async () => {
     const { backend, compiler, disk } = world()
-    await backend().fresh(block())
-    await backend(new TypstCache(), { ...compiler, id: 'other typst' }).fresh(block())
+    await backend().render(block())
+    await backend(new TypstCache(), { ...compiler, id: 'other typst' }).render(block())
     expect([...disk.keys()].filter(path => path.endsWith('.png'))).toHaveLength(2)
   })
 
@@ -117,15 +117,15 @@ describe('typst backend', () => {
     const b = backend(new TypstCache(), undefined, false)
     const importing = { typst: '#import "@preview/cetz:0.4.2"', maxColumns: 80 } as const
     const skipped = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
-    expect(await b.known(importing)).toEqual(skipped)
-    expect(await b.fresh(importing)).toEqual(skipped)
+    expect(await b.ready(importing)).toEqual(skipped)
+    expect(await b.render(importing)).toEqual(skipped)
     expect(calls.compile).toBe(0)
-    expect(await b.fresh(block())).toMatchObject({ columns: expect.any(Number) })
+    expect(await b.render(block())).toMatchObject({ columns: expect.any(Number) })
   })
 
   test('a picture is made under a name of its own and moved into place whole', async () => {
     const { backend, disk, compiledTo } = world()
-    const drawn = (await backend().fresh(block())) as Rendered
+    const drawn = (await backend().render(block())) as Rendered
     expect(compiledTo[0]).toMatch(/\.png\.\w+\.part$/)
     expect('file' in drawn.picture && disk.has(drawn.picture.file)).toBe(true)
     expect([...disk.keys()].some(path => path.endsWith('.part'))).toBe(false)

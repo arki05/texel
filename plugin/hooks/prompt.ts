@@ -3,10 +3,12 @@
 // render them, diagrams from packages only where they may be imported.
 // Pure: what texel can draw with, the section's text out.
 
+import type { Theme } from './look'
+
 /** The section's id: a plugin's own is `<plugin>:<name>`. */
 export const PROMPT_SECTION = 'texel:math'
 
-export function promptNote({ typst, packages, theme }: { typst: boolean; packages: boolean; theme: 'dark' | 'light' }) {
+export function noteText({ typst, packages, theme }: { typst: boolean; packages: boolean; theme: Theme }) {
   const lines = [
     'This terminal typesets LaTeX math in your replies (the texel plugin).',
     'Write inline math as \\( ... \\) and display math as \\[ ... \\] on lines of their own; $ ... $ and $$ ... $$ also work.',

@@ -14,14 +14,12 @@ function drawPart(ui: Ui, part: Laid): RenderElement {
       return <ui.Markdown text={part.text} />
     case 'lines':
       return drawLines(ui, part.lines)
-    case 'picture': {
-      const { picture, columns, rows } = part.rendered
+    case 'picture':
       return (
         <ui.Box justifyContent="center" width="100%">
-          {image(ui, picture, columns, rows, part.alt)}
+          {image(ui, part.rendered, part.alt)}
         </ui.Box>
       )
-    }
     case 'source':
       return part.note ? sourceWithNote(ui, part.source, part.note) : <ui.Markdown text={part.source} />
   }
