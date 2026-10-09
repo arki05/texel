@@ -29,10 +29,14 @@
   set par(justify: true)
   // Lines given no colour take the text's, not black, which a dark terminal
   // hides: typst folds it into a stroke that names only its width (a table's
-  // `stroke: 0.5pt`, fletcher's arrows). Shapes keep typst's own default, so
-  // a filled box gains no outline.
+  // `stroke: 0.5pt`, fletcher's arrows and nodes). Only unfilled shapes take
+  // it, so a filled one gains no outline.
   set line(stroke: fg)
-  set curve(stroke: fg)
+  show curve.where(fill: none): set curve(stroke: fg)
+  show circle.where(fill: none): set circle(stroke: fg)
+  show ellipse.where(fill: none): set ellipse(stroke: fg)
+  show rect.where(fill: none): set rect(stroke: fg)
+  show polygon.where(fill: none): set polygon(stroke: fg)
   // A table's padding in em, as typst's 5pt is at its own 11pt: at the size
   // text is set here, an inline fraction would overflow 5pt into the next row.
   set table(stroke: fg, inset: 0.45em)

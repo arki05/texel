@@ -32,8 +32,9 @@ const UNESCAPED = String.raw`(?<=(?:^|[^\\])(?:\\\\)*)`
 // `$…$` follows pandoc's rule: no space just inside either dollar, and no digit
 // right after the closing one, so "$5 and $10" stays prose; `\$` is a dollar.
 const INLINE_DOLLAR = String.raw`(?<![\\$\w])\$(?=[^\s$])((?:\\\$|[^$\n])+?)(?<=[^\s\\])\$(?![\d$])`
-// `\( \)` around nothing but spaces is left as text.
-const INLINE_PAREN = String.raw`${UNESCAPED}\\\(([^\n]*?\S[^\n]*?)\\\)`
+// One lazy run to the closer, so a line of unclosed `\(` costs linear time
+// at each; `\( \)` around nothing but spaces is left as text (tokenizeProse).
+const INLINE_PAREN = String.raw`${UNESCAPED}\\\(([^\n]*?)\\\)`
 const HAS_INLINE = new RegExp(`${INLINE_DOLLAR}|${INLINE_PAREN}`)
 // Display math is always a block of its own, as in LaTeX: mid-sentence it splits
 // the paragraph. It never crosses a blank line, so one stray `$$` cannot swallow
@@ -72,7 +73,11 @@ function tokenizeProse(text: string, style: Emphasis): Atom[] {
   for (const m of text.matchAll(TOKEN)) {
     pushText(text.slice(last, m.index))
     last = m.index + m[0].length
-    if (m[1] !== undefined || m[2] !== undefined) atoms.push({ kind: 'math', tex: (m[1] ?? m[2])!.trim() })
+    if (m[1] !== undefined || m[2] !== undefined) {
+      const tex = (m[1] ?? m[2])!.trim()
+      if (tex) atoms.push({ kind: 'math', tex })
+      else pushText(m[0])
+    }
     else if (m[3] !== undefined || m[4] !== undefined) atoms.push(...tokenizeProse((m[3] ?? m[4])!, { ...style, bold: true }))
     else if (m[5] !== undefined || m[6] !== undefined) atoms.push(...tokenizeProse((m[5] ?? m[6])!, { ...style, italic: true }))
     else if (m[7] !== undefined) atoms.push(...tokenizeProse(m[7], style))

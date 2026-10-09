@@ -18,6 +18,12 @@ describe('parse', () => {
     expect(needsRender(parse('```tex\n\\documentclass{article}\n```'))).toBe(false)
   })
 
+  test('a line full of unclosed \\( is read in linear time', () => {
+    const start = Date.now()
+    expect(needsRender(parse('a \\( '.repeat(4000)))).toBe(false)
+    expect(Date.now() - start).toBeLessThan(1000)
+  })
+
   test('an escaped backslash is no delimiter: \\\\( is a backslash and a parenthesis', () => {
     expect(needsRender(parse('Escape it as \\\\(x\\\\) or \\\\[y\\\\] in Markdown.'))).toBe(false)
     expect(parse('A pair, then math: \\\\\\(x\\)').map(s => s.kind)).toEqual(['paragraph'])

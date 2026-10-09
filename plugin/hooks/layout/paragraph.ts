@@ -46,7 +46,8 @@ async function formula(answers: Answers<undefined>, tex: string, options: Paragr
   if (!ink) return undefined
   if (isFailure(ink)) return failed(tex, ink)
   const { above, below, placement } = fitInline(ink, options.grid, width, options.fit)
-  if (placement.scale < MIN_READABLE) return failed(tex, { error: 'too large for the line' })
+  // A smaller least scale the person chose is theirs to keep.
+  if (placement.scale < Math.min(MIN_READABLE, options.fit.minScale)) return failed(tex, { error: 'too large for the line' })
   const drawn = await answers.picture({ kind: 'inline', tex, placement: side ? { ...placement, side } : placement })
   if (!drawn) return undefined
   if (isFailure(drawn)) return failed(tex, drawn)

@@ -25,6 +25,12 @@ describe('withoutPageRules', () => {
     expect(program(block(80, typst), style).source).toContain('#typst-block[\n\n\n#set text(size: 9pt)\nhi\n]')
   })
 
+  test('a parenthesis in content, a string or a comment does not close it; prose is not a rule', () => {
+    expect(withoutPageRules('#set page(width: 1cm, header: [ ) ( ])\nz')).toBe('\nz')
+    expect(withoutPageRules('#set page(width: 1cm, // see (note\n  height: ")")\nz')).toBe('\n\nz')
+    expect(withoutPageRules('Please set page(s) margins.')).toBe('Please set page(s) margins.')
+  })
+
   test('inside code, too; other rules and unclosed ones stay', () => {
     expect(withoutPageRules('#{ set page(height: auto); [x] }')).toBe('#{ ; [x] }')
     expect(withoutPageRules('#set pagebreak-weak(x)\n#set page(')).toBe('#set pagebreak-weak(x)\n#set page(')
@@ -37,5 +43,8 @@ describe('importsPackage', () => {
     expect(importsPackage('#include "@local/notes:0.1.0"')).toBe(true)
     expect(importsPackage('#import "util.typ": *')).toBe(false)
     expect(importsPackage('mail me at "@preview/x" later')).toBe(false)
+    expect(importsPackage('#{ import "@preview/cetz:0.3.0": * }')).toBe(true)
+    expect(importsPackage('#show: it => { import "@preview/a:1": *; it }')).toBe(true)
+    expect(importsPackage('#import ("@preview/a:1.0.0")')).toBe(true)
   })
 })

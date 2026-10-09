@@ -34,7 +34,8 @@ export function widthFree({ source, inputs }: Program): Program {
   return { source, inputs: rest }
 }
 
-const PAGE_RULE = /#?set\s+page\s*\(/g
+// A page rule in markup (`#set page(`) or at the start of a statement in code.
+const PAGE_RULE = /(?:#|(?<=[{;]\s*|^\s*))set\s+page\s*\(/gm
 
 /**
  * `typst` without its `set page(…)` rules, each blanked up to its closing
@@ -55,21 +56,34 @@ export function withoutPageRules(typst: string) {
   return out + typst.slice(from)
 }
 
-// Just past the parenthesis that closes one opened before `at`, strings
-// skipped; undefined when none does.
+// Just past the parenthesis that closes one opened before `at`, undefined
+// when none does. Strings and comments in code are skipped, and in content
+// (`[…]`) a parenthesis is text.
 function closingParen(typst: string, at: number) {
-  let depth = 1
+  const open: string[] = ['(']
   for (let i = at; i < typst.length; i++) {
     const c = typst[i]
-    if (c === '"') {
+    const inCode = open.at(-1) === '('
+    if (c === '\\') i++
+    else if (inCode && c === '"') {
       for (i++; i < typst.length && typst[i] !== '"'; i++) if (typst[i] === '\\') i++
-    } else if (c === '(') depth++
-    else if (c === ')' && --depth === 0) return i + 1
+    }
+    else if (inCode && typst.startsWith('//', i)) i = typst.indexOf('\n', i) < 0 ? typst.length : typst.indexOf('\n', i)
+    else if (inCode && typst.startsWith('/*', i)) i = typst.indexOf('*/', i) < 0 ? typst.length : typst.indexOf('*/', i) + 1
+    else if ((inCode && c === '(') || c === '[') open.push(c)
+    else if ((c === ')' && open.at(-1) === '(') || (c === ']' && open.at(-1) === '[')) {
+      open.pop()
+      if (!open.length) return i + 1
+    }
   }
   return undefined
 }
 
-/** Whether typst markup imports or includes a package (`"@preview/..."`), which typst downloads. */
+/**
+ * Whether typst markup imports or includes a package (`"@preview/..."`),
+ * which typst downloads: in markup or in code, the path in parentheses or
+ * not. A path held in a variable goes unseen.
+ */
 export function importsPackage(typst: string) {
-  return /#(?:import|include)\s+"@[\w-]+\//.test(typst)
+  return /\b(?:import|include)\s*\(?\s*"@[\w-]+\//.test(typst)
 }
