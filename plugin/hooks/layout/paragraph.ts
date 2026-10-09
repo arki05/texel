@@ -5,7 +5,7 @@
 import type { InlineLine } from '../markdown/parse'
 import type { Answers } from '../render/renderer'
 import { isFailure, reason, type Picture, type RenderFailure } from '../render/result'
-import { fitInline, type FitOptions } from './fit'
+import { fitInline, MIN_READABLE, type FitOptions } from './fit'
 import type { Grid } from './geometry'
 import { cells, wrap, type Line, type Piece } from './wrap'
 
@@ -35,6 +35,7 @@ async function formula(answers: Answers<undefined>, tex: string, options: Paragr
   if (!ink) return undefined
   if (isFailure(ink)) return failed(tex, ink)
   const { above, below, placement } = fitInline(ink, options.grid, width, options.fit)
+  if (placement.scale < MIN_READABLE) return failed(tex, { error: 'too large for the line' })
   const drawn = await answers.picture({ kind: 'inline', tex, placement })
   if (!drawn) return undefined
   if (isFailure(drawn)) return failed(tex, drawn)

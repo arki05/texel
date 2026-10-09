@@ -4,7 +4,7 @@
 // machine and Claude Code (host.ts and settings.ts decide what they mean),
 // prepares what the view draws with, and hands it each message.
 
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import { atom, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
 
 import { cacheDir, MIN_TYPST, pruneCommand, showsImages, themeFrom, typstFrom, type Machine, type TypstInstall } from './host'
 import { gridFor } from './layout/geometry'
@@ -40,7 +40,9 @@ let host: Promise<Host> | undefined
 // Claude Code's theme, read again after the person changes it.
 let theme: Promise<Theme> | undefined
 // `/texel source`: every message shown as its source, for reading or copying.
-let showingSource = false
+// Session state, so a reload of texel (a change of settings) keeps it, and
+// every message that read it is drawn again when it changes.
+const showingSource = atom({ plugin: 'texel', key: 'showingSource' } as const, false)
 const mathCache = new MathCache()
 const typstCache = new TypstCache()
 // Typst processes at once, across every draw: a reply full of blocks queues rather than floods.
@@ -127,7 +129,7 @@ async function prepare(
   e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>,
   settings: Settings,
 ): Promise<{ ctx: ViewContext; theme: Theme } | undefined> {
-  if (showingSource) return undefined
+  if (await read($, showingSource)) return undefined
   const known = await hostOf($)
   if (!draws(settings, known)) return undefined
 
@@ -168,13 +170,13 @@ async function draw(
 }
 
 // What `/texel` reports: what texel draws with here.
-function status(settings: Settings, known: Host) {
+function status(settings: Settings, known: Host, sources: boolean) {
   const version = typstVersion(known.typst)
   return [
     draws(settings, known) ? 'drawing pictures in this terminal' : 'not drawing here (no kitty graphics, or images set to never)',
     '  LaTeX math: MathJax, built in',
     `  typst blocks: ${version ? `typst ${version}` : `off, needs typst ${MIN_TYPST.join('.')} or newer`}`,
-    `  showing: ${showingSource ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
+    `  showing: ${sources ? 'sources; /texel source renders again' : 'rendered; /texel source shows sources'}`,
   ].join('\n')
 }
 
@@ -208,13 +210,12 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'texel' }, async ($, e) => {
-    if (e.args.trim() === 'source') {
-      showingSource = !showingSource
-      $.ui.status(showingSource ? 'texel: showing sources' : undefined)
-      $.ui.invalidate('ui.render')
-      return { text: showingSource ? 'showing sources; /texel source renders again' : 'rendering again' }
+    if (e.args.trim().toLowerCase() === 'source') {
+      const sources = await update($, showingSource, shown => !shown)
+      $.ui.status(sources ? 'texel: showing sources' : undefined)
+      return { text: sources ? 'showing sources; /texel source renders again' : 'rendering again' }
     }
-    return { text: status(settings, await hostOf($)) }
+    return { text: status(settings, await hostOf($), await read($, showingSource)) }
   })
 
   // A new theme: once it is written, read it again and draw every message in its colours.

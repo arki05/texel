@@ -20,20 +20,26 @@ export type Segment =
   | { kind: 'typst'; code: string; source: string }
   | { kind: 'paragraph'; lines: InlineLine[]; source: string }
 
-const MATH_FENCES = new Set(['latex', 'tex', 'math', 'katex'])
+// A ```math fence is a formula, as on GitHub; ```latex and ```tex are LaTeX
+// source to read or copy, and stay code.
+const MATH_FENCES = new Set(['math'])
 const TYPST_FENCES = new Set(['typst', 'typ'])
+
+// Before a delimiter: no backslash, or an even run of them, each pair an
+// escaped backslash, so `\\(` is a backslash and a parenthesis.
+const UNESCAPED = String.raw`(?<=(?:^|[^\\])(?:\\\\)*)`
 
 // `$…$` follows pandoc's rule: no space just inside either dollar, and no digit
 // right after the closing one, so "$5 and $10" stays prose; `\$` is a dollar.
 const INLINE_DOLLAR = String.raw`(?<![\\$\w])\$(?=[^\s$])((?:\\\$|[^$\n])+?)(?<=[^\s\\])\$(?![\d$])`
 // `\( \)` around nothing but spaces is left as text.
-const INLINE_PAREN = String.raw`\\\(([^\n]*?\S[^\n]*?)\\\)`
+const INLINE_PAREN = String.raw`${UNESCAPED}\\\(([^\n]*?\S[^\n]*?)\\\)`
 const HAS_INLINE = new RegExp(`${INLINE_DOLLAR}|${INLINE_PAREN}`)
 // Display math is always a block of its own, as in LaTeX: mid-sentence it splits
 // the paragraph. It never crosses a blank line, so one stray `$$` cannot swallow
 // the prose up to the next formula.
 const NO_BREAK = String.raw`(?:(?!\n[ \t]*\n)[\s\S])`
-const DISPLAY = new RegExp(String.raw`(?<!\\)\$\$${NO_BREAK}+?\$\$|\\\[${NO_BREAK}+?\\\]`, 'g')
+const DISPLAY = new RegExp(String.raw`(?<!\\)\$\$${NO_BREAK}+?\$\$|${UNESCAPED}\\\[${NO_BREAK}+?\\\]`, 'g')
 
 // A code span, like display math, ends at a paragraph break.
 const CODE_SPAN = new RegExp(String.raw`(\x60+)([^\x60]${NO_BREAK}*?)\1(?!\x60)`, 'g')
@@ -174,7 +180,7 @@ export function parse(reply: string): Segment[] {
     last = m.index + m[0].length
     const lang = (m[3] ?? '').toLowerCase()
     const body = (m[4] ?? '').replace(/\n$/, '')
-    if (MATH_FENCES.has(lang) && !/\\documentclass|\\begin\{tikzpicture\}/.test(body)) {
+    if (MATH_FENCES.has(lang)) {
       out.push({ kind: 'display', tex: body, source: m[0] })
     } else if (TYPST_FENCES.has(lang)) {
       out.push({ kind: 'typst', code: body, source: m[0] })

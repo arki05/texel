@@ -6,7 +6,10 @@
     "name": "Julius Arkenberg",
     "email": "julius@rkenberg.de"
   },
-  "license": "MIT",
+  "license": "MIT AND Apache-2.0",
+  "repository": "https://github.com/arki05/texel",
+  "homepage": "https://github.com/arki05/texel",
+  "types": "./types/index.d.ts",
   "userConfig": {
     "promptNote": {
       "type": "boolean",

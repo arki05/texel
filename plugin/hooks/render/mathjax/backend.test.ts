@@ -77,6 +77,31 @@ describe('MathJax backend', () => {
     expect(await backend().ink('\\norm{x}')).toMatchObject({ error: expect.stringContaining('\\norm') })
   })
 
+  test("what one formula defines never reaches the next; the macros file's reach every one", async () => {
+    const math = backend({ macros: '\\newcommand{\\R}{\\mathbb{R}}' })
+    expect(await math.ink('\\newcommand{\\Z}{\\mathbb{Z}} \\Z \\subset \\R')).toMatchObject({ width: expect.any(Number) })
+    expect(await math.ink('\\Z')).toEqual({ error: 'Undefined control sequence \\Z' })
+    expect(await math.ink('\\R')).toMatchObject({ width: expect.any(Number) })
+  })
+
+  test('broken macros fail every formula, saying where', async () => {
+    expect(await backend({ macros: '\\newcommand{\\bad}{\\frac{1}' }).ink('x')).toMatchObject({ error: expect.stringContaining('in your macros:') })
+  })
+
+  test('the cache lets the least recently used go past its size, and starts afresh for new macros', async () => {
+    const cache = new MathCache(200_000)
+    const math = backend({}, cache)
+    const draw = (tex: string) => math.picture({ kind: 'display', tex })
+    const first = await draw('a')
+    for (const tex of ['b', 'c', 'd', 'e', 'f', 'g', 'h']) await draw(tex)
+    expect(cache.size).toBeLessThan(8)
+    expect(await draw('a')).not.toBe(first)
+    const again = await draw('h')
+    expect(await draw('h')).toBe(again)
+    backend({ macros: '\\newcommand{\\x}{y}' }, cache)
+    expect(cache.size).toBe(0)
+  })
+
   test('a picture is made once per formula, style and box', async () => {
     const cache = new MathCache()
     const job = { kind: 'display', tex: 'e^{i\\pi}' } as const

@@ -21,16 +21,55 @@ const PX_PER_PT = 3
 /** The most pixels an Image takes, as RGBA bytes. */
 export const MAX_BYTES = 2 * 1024 * 1024
 
-/** What MathJax keeps between draws, for as long as the module is loaded. */
-export class MathCache {
-  private readonly texes = new Map<string, Tex>()
-  readonly results = new Map<string, Ink | Rendered | RenderFailure>()
+type Result = Ink | Rendered | RenderFailure
 
-  /** The TeX that knows `macros`: one per macros text, as definitions persist in it. */
+/**
+ * What MathJax keeps between draws, for as long as the module is loaded: the
+ * TeX for the macros in use, and what it has made, the least recently used
+ * let go past `maxBytes`. New macros start it afresh, as everything made
+ * with the old ones is stale.
+ */
+export class MathCache {
+  private current: { macros: string; tex: Tex } | undefined
+  private readonly results = new Map<string, { result: Result; bytes: number }>()
+  private bytes = 0
+
+  constructor(private readonly maxBytes = 64 * 1024 * 1024) {}
+
+  /** The TeX that knows `macros`. */
   tex(macros: string): Tex {
-    let tex = this.texes.get(macros)
-    if (!tex) this.texes.set(macros, (tex = createTex(macros)))
-    return tex
+    if (this.current?.macros !== macros) {
+      this.current = { macros, tex: createTex(macros) }
+      this.results.clear()
+      this.bytes = 0
+    }
+    return this.current.tex
+  }
+
+  get(key: string): Result | undefined {
+    const entry = this.results.get(key)
+    if (!entry) return undefined
+    // Used again: last to go.
+    this.results.delete(key)
+    this.results.set(key, entry)
+    return entry.result
+  }
+
+  set(key: string, result: Result) {
+    // A picture is its pixels, base64 in a string of two-byte characters; anything else is small.
+    const bytes = 2 * key.length + ('picture' in result && 'rgba' in result.picture ? 2 * result.picture.rgba.length : 256)
+    this.results.set(key, { result, bytes })
+    this.bytes += bytes
+    for (const [oldest, entry] of this.results) {
+      if (this.bytes <= this.maxBytes || oldest === key) break
+      this.results.delete(oldest)
+      this.bytes -= entry.bytes
+    }
+  }
+
+  /** How many results it holds. */
+  get size() {
+    return this.results.size
   }
 }
 
@@ -73,6 +112,10 @@ function place(raster: Inked, width: number, height: number, x: number, y: numbe
 export function createMathBackend(cache: MathCache, style: MathStyle): MathBackend {
   const { grid } = style
   const tex = cache.tex(style.macros)
+  // What results are known by besides their job: the style, but for the
+  // macros, which the cache's TeX already stands for.
+  const { macros: _, ...styled } = style
+  const styleKey = JSON.stringify(styled)
   // The em, in points: x-height matched to the terminal's, times `scale`.
   const em = (scale: number) => (scale * grid.xHeight) / X_HEIGHT
 
@@ -85,9 +128,9 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
 
   // What `make` makes for `key`, made once. Whatever it throws is a failure
   // of this formula alone, not of the message it is in.
-  function remembered<T extends Ink | Rendered | RenderFailure>(key: unknown[], make: () => T | RenderFailure): T | RenderFailure {
-    const id = JSON.stringify(key)
-    const known = cache.results.get(id) as T | RenderFailure | undefined
+  function remembered<T extends Result>(key: unknown, make: () => T | RenderFailure): T | RenderFailure {
+    const id = `${JSON.stringify(key)} ${styleKey}`
+    const known = cache.get(id) as T | RenderFailure | undefined
     if (known) return known
     let made: T | RenderFailure
     try {
@@ -95,7 +138,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     } catch (e) {
       made = { error: `texel failed: ${e instanceof Error ? e.message : String(e)}` }
     }
-    cache.results.set(id, made)
+    cache.set(id, made)
     return made
   }
 
@@ -117,7 +160,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
 
   return {
     async ink(source) {
-      return remembered(['ink', source, style.macros, grid, style.inlineScale], () => {
+      return remembered(['ink', source], () => {
         const drawing = drawingFor(tex, source, false)
         if (isFailure(drawing)) return drawing
         // Too large for any line: refused before it is filled.
@@ -132,7 +175,7 @@ export function createMathBackend(cache: MathCache, style: MathStyle): MathBacke
     },
 
     async picture(job: LatexJob) {
-      return remembered([job, style], () => {
+      return remembered(job, () => {
         const drawing = drawingFor(tex, job.tex, job.kind === 'display')
         if (isFailure(drawing)) return drawing
         if (job.kind === 'inline') {

@@ -28,6 +28,11 @@ describe('readSettings', () => {
     expect([inlineScale, fit.minScale, fit.shiftUp]).toEqual([3, 0.1, DEFAULT_FIT.shiftUp])
   })
 
+  test('a field cleared, or only spaces, is its default, not its least', () => {
+    const { inlineScale, fit } = readSettings({ inlineSize: '', inlineMinScale: '  ' })
+    expect([inlineScale, fit.minScale]).toEqual([1.2, DEFAULT_FIT.minScale])
+  })
+
   test('a font is a preset, or Custom with its own proportions', () => {
     expect(readSettings({ terminalFont: 'SF Mono' }).font).toEqual(FONTS['SF Mono'])
     expect(readSettings({ terminalFont: 'Custom', fontAspect: 2, fontXHeight: 0.45, fontBaseline: 0.8 }).font).toEqual({
@@ -37,15 +42,18 @@ describe('readSettings', () => {
     })
     expect(readSettings({ terminalFont: 'Comic Mono' }).font).toEqual(FONTS['JetBrains Mono'])
     expect(readSettings({ terminalFont: 'constructor' }).font).toEqual(FONTS['JetBrains Mono'])
+    expect(readSettings({ terminalFont: 'sf mono' }).font).toEqual(FONTS['SF Mono'])
   })
 
   test('typst packages are allowed unless turned off', () => {
     expect(readSettings({ typstPackages: false }).typstPackages).toBe(false)
     expect(readSettings({ typstPackages: 'nonsense' }).typstPackages).toBe(true)
+    expect(readSettings({ typstPackages: 'False', promptNote: ' off ' })).toMatchObject({ typstPackages: false, promptNote: false })
   })
 
   test('pictures: auto, always or never; anything else is auto', () => {
     expect(readSettings({ images: 'never' }).images).toBe('never')
     expect(readSettings({ images: 'sometimes' }).images).toBe('auto')
+    expect(readSettings({ images: 'Always' }).images).toBe('always')
   })
 })

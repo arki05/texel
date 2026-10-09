@@ -31,9 +31,20 @@ export type Settings = {
 /** What `terminalFont` names when the person gives the proportions themselves. */
 const CUSTOM_FONT = 'Custom'
 
+// A setting as text, trimmed; empty or absent is unset.
+function text(options: PluginOptions, name: string): string | undefined {
+  const value = String(options[name] ?? '').trim()
+  return value === '' ? undefined : value
+}
+
 function number(options: PluginOptions, name: string, fallback: number, min: number, max: number) {
-  const value = Number(options[name] ?? fallback)
+  const value = Number(text(options, name) ?? fallback)
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
+}
+
+// On unless turned off: false, or a word for it however it is written.
+function flag(options: PluginOptions, name: string) {
+  return !/^(?:false|off|no|0)$/i.test(text(options, name) ?? '')
 }
 
 // Six hex digits, with or without `#`; anything else counts as unset.
@@ -41,16 +52,15 @@ function color(options: PluginOptions, name: string) {
   return /^#?([0-9a-f]{6})$/i.exec(String(options[name] ?? '').trim())?.[1]?.toLowerCase()
 }
 
-// One of `choices`, else the first.
+// One of `choices`, in any case, else the first.
 function choice<T extends string>(options: PluginOptions, name: string, choices: readonly T[]): T {
-  const value = options[name]
-  return choices.includes(value as T) ? (value as T) : choices[0]!
+  const value = text(options, name)?.toLowerCase()
+  return choices.find(c => c.toLowerCase() === value) ?? choices[0]!
 }
 
 function font(options: PluginOptions): TerminalFont {
-  const name = String(options.terminalFont ?? '')
-  if (Object.hasOwn(FONTS, name)) return FONTS[name as FontName]
-  if (name !== CUSTOM_FONT) return FONTS['JetBrains Mono']
+  const name = choice(options, 'terminalFont', ['JetBrains Mono', ...(Object.keys(FONTS) as FontName[]), CUSTOM_FONT])
+  if (name !== CUSTOM_FONT) return FONTS[name]
   const preset = FONTS['JetBrains Mono']
   return {
     aspect: number(options, 'fontAspect', preset.aspect, 1, 4),
@@ -72,7 +82,7 @@ export function readSettings(options: PluginOptions): Settings {
     },
     font: font(options),
     images: choice(options, 'images', ['auto', 'always', 'never']),
-    typstPackages: options.typstPackages !== false,
-    promptNote: options.promptNote !== false,
+    typstPackages: flag(options, 'typstPackages'),
+    promptNote: flag(options, 'promptNote'),
   }
 }

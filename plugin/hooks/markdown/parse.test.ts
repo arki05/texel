@@ -8,13 +8,19 @@ describe('parse', () => {
     expect(needsRender(segments)).toBe(false)
   })
 
-  test('display math, latex and typst fences', () => {
-    const text = 'Intro\n\n$$\n\\int_0^1 x\\,dx\n$$\n\n```latex\nE = mc^2\n```\n\n```typst\n$ a^2 $\n```\n\n```ts\nconst x = 1\n```'
+  test('display math, math and typst fences', () => {
+    const text = 'Intro\n\n$$\n\\int_0^1 x\\,dx\n$$\n\n```math\nE = mc^2\n```\n\n```typst\n$ a^2 $\n```\n\n```ts\nconst x = 1\n```'
     expect(parse(text).map(s => s.kind)).toEqual(['markdown', 'display', 'display', 'typst', 'markdown'])
   })
 
-  test('full LaTeX documents stay source', () => {
-    expect(needsRender(parse('```latex\n\\documentclass{article}\n```'))).toBe(false)
+  test('latex and tex fences are source to copy, and stay code', () => {
+    expect(needsRender(parse('```latex\n\\frac{a}{b}\n```'))).toBe(false)
+    expect(needsRender(parse('```tex\n\\documentclass{article}\n```'))).toBe(false)
+  })
+
+  test('an escaped backslash is no delimiter: \\\\( is a backslash and a parenthesis', () => {
+    expect(needsRender(parse('Escape it as \\\\(x\\\\) or \\\\[y\\\\] in Markdown.'))).toBe(false)
+    expect(parse('A pair, then math: \\\\\\(x\\)').map(s => s.kind)).toEqual(['paragraph'])
   })
 
   test('inline math becomes a paragraph of atoms', () => {

@@ -66,38 +66,41 @@ function find(node: SvgNode, test: (n: SvgNode) => boolean): SvgNode | undefined
   return undefined
 }
 
+const output = new SVG({ fontCache: 'none' })
+
+// `tex` converted by `document`, as the formula's <svg>, or why it cannot be.
+function convertIn(document: ReturnType<typeof mathjax.document>, tex: string, display: boolean): TexResult {
+  let root: SvgNode
+  try {
+    root = tree(document.convert(accented(tex), { display, em: 16, ex: 8, containerWidth: 1280 }))
+  } catch (e) {
+    // MathJax's own failure, not a TeX error: too deep a nesting overflows its stack.
+    return { error: `MathJax failed: ${e instanceof Error ? e.message : String(e)}` }
+  }
+  const svg = find(root, node => node.tag === 'svg')
+  if (!svg) return { error: 'MathJax drew nothing' }
+  const error = find(svg, node => node.attrs['data-mml-node'] === 'merror')
+  return error ? { error: error.attrs['data-mjx-error'] ?? 'TeX error' } : svg
+}
+
 /**
- * A converter whose TeX knows `macros` (`\newcommand`s): they are defined once,
- * and stay defined for every formula it converts.
+ * A converter whose TeX knows `macros` (`\newcommand`s). Each formula is
+ * converted in a document of its own, `macros` read first, so what one
+ * formula defines never reaches the next: a fresh document costs a tenth of
+ * a millisecond.
  */
 export function createTex(macros: string): Tex {
-  const document = mathjax.document('', {
-    InputJax: new TeX({ packages: PACKAGES }),
-    OutputJax: new SVG({ fontCache: 'none' }),
-  })
-  const convert = (tex: string, display: boolean): TexResult => {
-    let root: SvgNode
-    try {
-      root = tree(document.convert(accented(tex), { display, em: 16, ex: 8, containerWidth: 1280 }))
-    } catch (e) {
-      // MathJax's own failure, not a TeX error: too deep a nesting overflows its stack.
-      return { error: `MathJax failed: ${e instanceof Error ? e.message : String(e)}` }
-    }
-    const svg = find(root, node => node.tag === 'svg')
-    if (!svg) return { error: 'MathJax drew nothing' }
-    const error = find(svg, node => node.attrs['data-mml-node'] === 'merror')
-    return error ? { error: error.attrs['data-mjx-error'] ?? 'TeX error' } : svg
+  const documentWithMacros = () => {
+    const document = mathjax.document('', { InputJax: new TeX({ packages: PACKAGES }), OutputJax: output })
+    return { document, defined: macros.trim() ? convertIn(document, macros, false) : undefined }
   }
-  if (macros.trim()) {
-    const defined = convert(macros, false)
-    if ('error' in defined) return { convert: () => ({ error: `in your macros: ${defined.error}` }) }
-  }
-  return { convert }
+  const { defined } = documentWithMacros()
+  if (defined && 'error' in defined) return { convert: () => ({ error: `in your macros: ${defined.error}` }) }
+  return { convert: (tex, display) => convertIn(documentWithMacros().document, tex, display) }
 }
 
 /** MathJax's stylesheet for its SVG, which a page carries alongside it: what drawing.ts reads off by hand. */
 export function stylesheet(): string {
-  const output = new SVG({ fontCache: 'none' })
   const document = mathjax.document('', { InputJax: new TeX({ packages: PACKAGES }), OutputJax: output })
   return adaptor.textContent(output.styleSheet(document) as never)
 }
