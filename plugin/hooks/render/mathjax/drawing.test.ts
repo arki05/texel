@@ -24,6 +24,11 @@ describe('outlinesOf', () => {
     expect(outlinesOf('m0 0h10v10z')).toEqual(square)
   })
 
+  test('exponents are read; numbers after a close are refused, not looped on', () => {
+    expect(outlinesOf('M1e+1 0L2e1 10Z')[0]!.start).toEqual([10, 0])
+    expect(() => outlinesOf('M0 0L10 0L10 10Z 5 5')).toThrow('numbers after Z')
+  })
+
   test('curves keep their control points, smooth ones mirrored', () => {
     expect(outlinesOf('M0 0Q5 10 10 0Z')[0]!.segments).toEqual([[[5, 10], [10, 0]]])
     expect(outlinesOf('M0 0Q5 10 10 0T20 0')[0]!.segments[1]).toEqual([[15, -10], [20, 0]])

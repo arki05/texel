@@ -49,16 +49,20 @@ const INK = 8
 export function rasterize({ viewBox, shapes }: Drawing, pxPerEm: number, rgb: readonly [number, number, number]): Raster {
   const k = pxPerEm / 1000
   const toPixels = ([x, y]: Point): Point => [(x - viewBox.left) * k, (y - viewBox.top) * k]
+  const box = { left: 0, top: 0, right: (viewBox.right - viewBox.left) * k, bottom: (viewBox.bottom - viewBox.top) * k }
+  // Ink is drawn up to an em beyond the viewBox (an italic overhang), no
+  // further: \rlap{\hspace{1e6em}x} would otherwise ask for a canvas a
+  // million ems wide around a formula a few wide.
+  const reach = { left: -pxPerEm, top: -pxPerEm, right: box.right + pxPerEm, bottom: box.bottom + pxPerEm }
   const filled = shapes.map(({ outlines, clip }) => {
-    const polygons = outlines.map(o => polygonOf(o, toPixels))
-    if (!clip) return polygons
-    const [a, b] = [toPixels([clip.left, clip.top]), toPixels([clip.right, clip.bottom])]
-    return polygons.map(p => clipped(p, { left: a[0], top: a[1], right: b[0], bottom: b[1] })).filter(p => p.length > 2)
+    const [a, b] = clip ? [toPixels([clip.left, clip.top]), toPixels([clip.right, clip.bottom])] : [[-Infinity, -Infinity], [Infinity, Infinity]]
+    const within = { left: Math.max(reach.left, a[0]), top: Math.max(reach.top, a[1]), right: Math.min(reach.right, b[0]), bottom: Math.min(reach.bottom, b[1]) }
+    return outlines.map(o => clipped(polygonOf(o, toPixels), within)).filter(p => p.length > 2)
   })
 
-  // The canvas holds the viewBox and any ink beyond it (an italic overhang),
-  // with a pixel to spare, so no edge ever lands outside the buffer.
-  const bounds = boundsOf(filled.flat(2), { left: 0, top: 0, right: (viewBox.right - viewBox.left) * k, bottom: (viewBox.bottom - viewBox.top) * k })
+  // The canvas holds the viewBox and the ink around it, with a pixel to
+  // spare, so no edge ever lands outside the buffer.
+  const bounds = boundsOf(filled.flat(2), box)
   const [ox, oy] = [Math.floor(bounds.left) - 1, Math.floor(bounds.top) - 1]
   const width = Math.ceil(bounds.right) - ox + 1
   const height = Math.ceil(bounds.bottom) - oy + 1

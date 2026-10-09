@@ -214,7 +214,7 @@ function parseLength(text: string): number {
 
 /** A path's `d` as outlines, every command made absolute (arcs, which MathJax does not draw, refused). */
 export function outlinesOf(d: string): Outline[] {
-  const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g) ?? []
+  const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g) ?? []
   const outlines: Outline[] = []
   let outline: Outline | undefined
   let cur: Point = [0, 0]
@@ -228,7 +228,8 @@ export function outlinesOf(d: string): Outline[] {
     cur = points[points.length - 1]!
   }
   while (i < tokens.length) {
-    if (/[a-zA-Z]/.test(tokens[i]!)) command = tokens[i++]!
+    const lettered = /[a-zA-Z]/.test(tokens[i]!)
+    if (lettered) command = tokens[i++]!
     const relative = command === command.toLowerCase()
     const at = (x: number, y: number): Point => (relative ? [cur[0] + x, cur[1] + y] : [x, y])
     const mirrored = (): Point => (control ? [2 * cur[0] - control[0], 2 * cur[1] - control[1]] : cur)
@@ -258,6 +259,8 @@ export function outlinesOf(d: string): Outline[] {
       segment(c1, c2, at(num(), num()))
       control = c2
     } else if (kind === 'Z') {
+      // Numbers after a close belong to no command.
+      if (!lettered) throw new Unsupported('MathJax drew a path with numbers after Z, which texel does not read')
       if (outline) {
         outlines.push(outline)
         cur = outline.start

@@ -58,4 +58,10 @@ describe('rasterize', () => {
     for (let i = 3; i < r.rgba.length; i += 4) sum += r.rgba[i]!
     expect(Math.abs(sum / 255 / 100 - 2 / 3)).toBeLessThan(0.01)
   })
+
+  test('ink is drawn up to an em beyond the viewBox, not further: the canvas stays near the formula', () => {
+    const r = fill([{ outlines: [rect(0, 0, 500, 500), rect(1e9, 0, 1e9 + 500, 500)] }])
+    expect(r.width).toBeLessThan(40)
+    expect(inkSize(r)).toEqual([5, 5])
+  })
 })
