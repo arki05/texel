@@ -27,6 +27,10 @@ describe('program', () => {
     expect(widthFree(program(block(40), style))).toEqual(widthFree(program(block(120), style)))
   })
 
+  test("a job's zoom multiplies the style's scale", () => {
+    expect(program({ ...block(80), zoom: 2 }, { ...style, scale: 1.5 })).toMatchObject({ inputs: { 'cell-width': String(8 / 3) }, ppi: 648 })
+  })
+
   test('width-free, a program still depends on its scale', () => {
     expect(widthFree(program(block(40), style))).not.toEqual(widthFree(program(block(40), { ...style, scale: 1.5 })))
   })

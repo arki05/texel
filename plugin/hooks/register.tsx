@@ -4,23 +4,24 @@
 // machine and Claude Code (host.ts and settings.ts decide what they mean),
 // prepares what the view draws with, and hands it each message.
 
-import { atom, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
+import { atom, memberOf, read, update, type EngineInterface, type Register, type RenderInput } from 'claude-code'
 
 import { cacheDir, pruneCommand, themeFrom, typstFrom, whyNoPictures, type Machine, type TypstStatus } from './host'
 import { gridFor } from './geometry'
 import { GUTTER, PROMPT_BACKGROUND, TEXT, type Theme } from './look'
-import { needsRender, parse } from './markdown/parse'
+import { needsRender, parse, type Segment } from './markdown/parse'
 import { noteText, PROMPT_SECTION } from './prompt'
 import { hash } from './render/hash'
 import { Limiter } from './render/typst/limit'
-import { layoutMessage } from './layout/message'
+import { layoutMessage, type BlockView } from './layout/message'
 import { createMathBackend, MathCache } from './render/mathjax/backend'
 import type { BlockRenderer } from './render/renderer'
+import type { TexelBlockView, TexelBlockViews } from '../types'
 import { createTypstBackend, TypstCache, typstBlocks, type Io } from './render/typst/backend'
 import { cliCompiler, type Run } from './render/typst/cli'
 import type { TypstStyle } from './render/typst/program'
 import { readSettings, type Settings } from './settings'
-import { drawMessage } from './view/message'
+import { drawMessage, type BlockControls } from './view/message'
 
 // The folder of texel.typ, within the plugin.
 const LIB = 'hooks/render/typst'
@@ -35,6 +36,12 @@ let host: Promise<Host> | undefined
 // Session state, so a reload of texel (a change of settings) keeps it, and
 // every message that read it is drawn again when it changes.
 const showingSource = atom({ plugin: 'texel', key: 'showingSource' } as const, false)
+// A message's blocks' own views, one member per message: session state too,
+// so a block keeps its zoom, or its source shown, through a reload and a resize.
+const blocks = atom({ plugin: 'texel', key: 'blocks' } as const, {})
+const UNSET: TexelBlockView = { zoom: 1, source: false }
+// The least and most a block's own zoom may make it, against typstScale.
+const ZOOM_RANGE = [0.25, 4] as const
 const mathCache = new MathCache()
 const typstCache = new TypstCache()
 // Typst processes at once, across every draw: a reply full of blocks queues rather than floods.
@@ -122,6 +129,36 @@ function typstRenderer($: EngineInterface, known: Host, style: TypstStyle, setti
   return typstBlocks(backend, settings.typstMaxWidth, () => $.ui.invalidate('ui.render'))
 }
 
+// Every display block's view, by its segment's index, from the message's own.
+async function blockViews(segments: Segment[], own: TexelBlockViews) {
+  const views = new Map<number, BlockView>()
+  await Promise.all(
+    segments.map(async (segment, i) => {
+      if (segment.kind !== 'block') return
+      const key = await hash(`${segment.renderer}\n${segment.body}`)
+      views.set(i, { key, ...(own[key] ?? UNSET) })
+    }),
+  )
+  return views
+}
+
+// `view` changed by `change`, the rest of the message's views as they were.
+const changed = (own: TexelBlockViews, key: string, change: (view: TexelBlockView) => TexelBlockView) => ({ ...own, [key]: change(own[key] ?? UNSET) })
+
+// What a block's controls do, in the message `e` draws. A change to the
+// message's views draws it again, its read having subscribed the drawing.
+function blockControls($: EngineInterface, e: RenderInput<'AssistantMessage' | 'UserMessage', 'terminal'>): BlockControls {
+  return {
+    zoom: (key, by) =>
+      void update($, memberOf(blocks, e), own =>
+        changed(own, key, view => ({ ...view, zoom: by === 0 ? 1 : Math.min(ZOOM_RANGE[1], Math.max(ZOOM_RANGE[0], view.zoom * by)) })),
+      ),
+    toggleSource: key => void update($, memberOf(blocks, e), own => changed(own, key, view => ({ ...view, source: !view.source }))),
+    copy: (text, press) =>
+      void $.ui.copy({ text, surface: press.surface }).then(({ isCopied }) => $.ui.toast(isCopied ? 'copied the block\'s source' : 'could not copy it here')),
+  }
+}
+
 /**
  * A message drawn, or undefined where texel leaves it to the engine: nothing
  * in it to render, no pictures here, or sources asked for. A prompt is
@@ -140,8 +177,9 @@ async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'Use
   const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineSize: settings.inlineSize, macros })
   const typst = typstRenderer($, known, { grid, color: settings.typstColor ?? TEXT[current], scale: settings.typstScale }, settings)
   const columns = (e.viewport?.columns ?? 100) - GUTTER - (isPrompt ? 2 : 0)
-  const laid = await layoutMessage({ inline: math, blocks: { math: math.block, typst } }, segments, { grid, fit: settings.fit, columns })
-  return drawMessage($.ui.resolve(e), laid, isPrompt ? PROMPT_BACKGROUND[current] : undefined)
+  const views = segments.some(segment => segment.kind === 'block') ? await blockViews(segments, await read($, memberOf(blocks, e))) : undefined
+  const laid = await layoutMessage({ inline: math, blocks: { math: math.block, typst } }, segments, { grid, fit: settings.fit, columns }, views)
+  return drawMessage($.ui.resolve(e), laid, isPrompt ? PROMPT_BACKGROUND[current] : undefined, blockControls($, e))
 }
 
 // What `/texel` reports: what texel draws with here.

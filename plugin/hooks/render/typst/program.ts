@@ -21,18 +21,19 @@ const WIDTH = 'max-columns'
 /**
  * The program that lays out `job` through texel.typ's `typst-block`.
  *
- * At `scale`, the block is laid out on cells `scale` times smaller, its text
+ * At `scale` (times the job's `zoom`), the block is laid out on cells `scale` times smaller, its text
  * still the terminal's size, and drawn at a ppi that gives every one of those
  * cells TYPST_PX_PER_COLUMN pixels across: put on the real cells, all of it,
  * a diagram's lengths in cm included, is `scale` times as large, and as sharp.
  */
 export function program(job: TypstJob, { grid, color, scale }: TypstStyle): Program {
-  const cellWidth = grid.cellWidth / scale
+  const size = scale * (job.zoom ?? 1)
+  const cellWidth = grid.cellWidth / size
   return {
     source: `#import "/texel.typ": *\n#typst-block[\n${withoutPageRules(job.typst)}\n]\n`,
     inputs: {
       'cell-width': String(cellWidth),
-      'cell-height': String(grid.cellHeight / scale),
+      'cell-height': String(grid.cellHeight / size),
       'x-height': String(grid.xHeight),
       foreground: color,
       [WIDTH]: String(job.maxColumns),

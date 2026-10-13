@@ -42,4 +42,29 @@ describe('layoutMessage', () => {
     expect(laid.map(part => part.kind)).toEqual(['picture', 'picture', 'source', 'source'])
     expect(laid[2]).toMatchObject({ source: '```typst\nc\n```', note: expect.stringContaining('more pictures than one message can hold') })
   })
+
+  test("a block's view: its zoom goes to its renderer, its source shown asks nothing, and both carry its handle", async () => {
+    const asked: (number | undefined)[] = []
+    const draw: BlockRenderer = async (_body, _columns, zoom) => (asked.push(zoom), picture(10))
+    const views = new Map([
+      [0, { key: 'a', zoom: 1.5, source: false }],
+      [1, { key: 'b', zoom: 1, source: true }],
+    ])
+    const laid = await layoutMessage(renderers(draw), [block('x'), block('y'), block('z')], options, views)
+    expect(asked).toEqual([1.5, 1])
+    expect(laid[0]).toMatchObject({ kind: 'picture', block: { key: 'a', zoom: 1.5, body: 'x', zoomable: true } })
+    expect(laid[1]).toMatchObject({ kind: 'source', source: '```typst\ny\n```', block: { key: 'b', source: true } })
+    expect(laid[2]).toMatchObject({ kind: 'picture' })
+    expect(laid[2]).not.toHaveProperty('block.key')
+  })
+
+  test('a block keeps its handle while its picture is on its way, and past the budget', async () => {
+    const views = new Map([[0, { key: 'a', zoom: 2, source: false }], [1, { key: 'b', zoom: 1, source: false }], [2, { key: 'c', zoom: 1, source: false }]])
+    const big = Math.floor(MESSAGE_PICTURE_BYTES * 0.6)
+    const answers: Record<string, Awaited<ReturnType<BlockRenderer>>> = { waiting: undefined, first: picture(big), second: picture(big) }
+    const laid = await layoutMessage(renderers(async body => answers[body]), ['waiting', 'first', 'second'].map(block), options, views)
+    expect(laid.map(part => part.kind)).toEqual(['source', 'picture', 'source'])
+    expect(laid[0]).toMatchObject({ block: { key: 'a', zoom: 2 } })
+    expect(laid[2]).toMatchObject({ note: expect.stringContaining('more pictures'), block: { key: 'c', body: 'second' } })
+  })
 })

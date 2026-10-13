@@ -23,15 +23,16 @@ export type InlineRenderer = {
 }
 
 /**
- * A block's body drawn at most `maxColumns` wide, or why not; undefined while
- * it is not ready, and the messages are drawn again when it is.
+ * A block's body drawn at most `maxColumns` wide, `zoom` times as large as
+ * its settings make it (typst blocks; display math ignores it), or why not;
+ * undefined while it is not ready, and the messages are drawn again when it is.
  */
-export type BlockRenderer = (body: string, maxColumns: number) => Promise<Rendered | RenderFailure | undefined>
+export type BlockRenderer = (body: string, maxColumns: number, zoom?: number) => Promise<Rendered | RenderFailure | undefined>
 
 export type Renderers = { inline: InlineRenderer; blocks: Record<BlockKind, BlockRenderer> }
 
-/** Typst markup, laid out at most `maxColumns` wide: a figure, or prose that wraps. */
-export type TypstJob = { typst: string; maxColumns: number }
+/** Typst markup, laid out at most `maxColumns` wide: a figure, or prose that wraps; `zoom` times as large as the style makes it. */
+export type TypstJob = { typst: string; maxColumns: number; zoom?: number }
 
 /** Typst in a process of its own: what it has already made, if anything, or what a run makes. */
 export type TypstBackend = {

@@ -51,8 +51,8 @@ const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPac
  * draw it again.
  */
 export function typstBlocks(backend: TypstBackend, maxWidth: number, redraw: () => void): BlockRenderer {
-  return async (typst, maxColumns) => {
-    const job = { typst, maxColumns: Math.min(maxColumns, maxWidth) }
+  return async (typst, maxColumns, zoom = 1) => {
+    const job = { typst, maxColumns: Math.min(maxColumns, maxWidth), zoom }
     const ready = await backend.ready(job)
     if (ready) return ready
     void backend.render(job).then(redraw, redraw)
