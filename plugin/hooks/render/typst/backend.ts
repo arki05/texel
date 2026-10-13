@@ -25,9 +25,11 @@ export class TypstCache {
   readonly runs = new Memo<Rendered>()
   /**
    * Blocks drawn at their natural size, by their width-free program's key:
-   * reused at any width they fit, so a resize needs no new picture.
+   * reused at any width they fit, so a resize needs no new picture. `wide`:
+   * a figure of fixed size past the layout width, which any terminal as
+   * wide fits; the rest fit a layout width as wide.
    */
-  readonly natural = new Map<string, Rendered>()
+  readonly natural = new Map<string, { rendered: Rendered; wide: boolean }>()
 }
 
 export type TypstOptions = {
@@ -43,8 +45,12 @@ export type TypstOptions = {
 
 const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPackages is off in /config', skipped: true }
 
+/** The steps, in columns, a terminal wider than typstMaxWidth is measured in. */
+const FIT_STEP = 10
+
 /**
- * Typst blocks drawn through `backend`, at most `maxWidth` columns wide: what
+ * Typst blocks drawn through `backend`, laid out at most `maxWidth` columns
+ * wide (a figure of fixed size up to all the columns it is given): what
  * it already knows, at once; otherwise its run starts in the background and
  * `redraw` is called when it ends. A draw never waits on typst: a hook that
  * did could outlast its time and be drawn as plain source, with nothing to
@@ -52,7 +58,10 @@ const PACKAGES_OFF: RenderFailure = { error: 'it imports a package, and typstPac
  */
 export function typstBlocks(backend: TypstBackend, maxWidth: number, redraw: () => void): BlockRenderer {
   return async (typst, maxColumns, zoom = 1) => {
-    const job = { typst, maxColumns: Math.min(maxColumns, maxWidth), zoom }
+    // The terminal's width as a figure may use it: past `maxWidth`, in whole
+    // steps, so a resize by a column or two keeps every block's key.
+    const fitColumns = maxColumns <= maxWidth ? maxColumns : Math.max(maxWidth, maxColumns - (maxColumns % FIT_STEP))
+    const job = { typst, maxColumns: Math.min(maxColumns, maxWidth), fitColumns, zoom }
     const ready = await backend.ready(job)
     if (ready) return ready
     void backend.render(job).then(redraw, redraw)
@@ -96,9 +105,13 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir, allow
   }
 
   // A block narrower than it was allowed was drawn at its natural size
-  // (texel.typ lays out a block that fits at its own width, a cell to spare).
+  // (texel.typ lays out a block that fits at its own width, a cell to spare),
+  // as was one wider, a figure of fixed size, but for one the terminal's
+  // width shrank, which is as wide as that.
   function noteNatural(job: TypstJob, naturalKey: string, result: Rendered | RenderFailure) {
-    if (!isFailure(result) && result.columns < job.maxColumns) cache.natural.set(naturalKey, result)
+    if (isFailure(result)) return
+    if (result.columns < job.maxColumns) cache.natural.set(naturalKey, { rendered: result, wide: false })
+    else if (result.columns > job.maxColumns && result.columns < (job.fitColumns ?? job.maxColumns)) cache.natural.set(naturalKey, { rendered: result, wide: true })
   }
 
   return {
@@ -106,7 +119,7 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir, allow
       if (refused(job)) return PACKAGES_OFF
       const { key, file, naturalKey } = await locate(job)
       const natural = cache.natural.get(naturalKey)
-      if (natural && natural.columns <= job.maxColumns) return natural
+      if (natural && natural.rendered.columns <= (natural.wide ? (job.fitColumns ?? job.maxColumns) : job.maxColumns)) return natural.rendered
       const settled = cache.runs.get(key)
       if (settled) return settled
       if (!(await io.exists(file))) return undefined

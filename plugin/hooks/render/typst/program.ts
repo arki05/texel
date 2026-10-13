@@ -15,8 +15,9 @@ export type TypstStyle = { grid: Grid; color: string; scale: number }
 /** One run of typst: a main file, the inputs it reads, and the ppi its PNG is drawn at. */
 export type Program = { source: string; inputs: Record<string, string>; ppi: number }
 
-/** The input that ties a program to the transcript's width. */
+/** The inputs that tie a program to the transcript's width. */
 const WIDTH = 'max-columns'
+const FIT = 'fit-columns'
 
 /**
  * The program that lays out `job` through texel.typ's `typst-block`.
@@ -37,6 +38,7 @@ export function program(job: TypstJob, { grid, color, scale }: TypstStyle): Prog
       'x-height': String(grid.xHeight),
       foreground: color,
       [WIDTH]: String(job.maxColumns),
+      [FIT]: String(job.fitColumns ?? job.maxColumns),
     },
     ppi: (TYPST_PX_PER_COLUMN / cellWidth) * 72,
   }
@@ -44,7 +46,7 @@ export function program(job: TypstJob, { grid, color, scale }: TypstStyle): Prog
 
 /** `program` as it would be at any width: what a block drawn at its natural size is known by. */
 export function widthFree({ inputs, ...rest }: Program): Program {
-  const { [WIDTH]: _, ...others } = inputs
+  const { [WIDTH]: _, [FIT]: __, ...others } = inputs
   return { ...rest, inputs: others }
 }
 

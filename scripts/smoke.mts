@@ -189,6 +189,13 @@ if (!version) {
   const [single, double] = [await typst.render({ typst: figure, maxColumns: 80 }), await typstAt(2).render({ typst: figure, maxColumns: 80 })]
   const doubled = !isFailure(single) && !isFailure(double) && Math.abs(double.columns - 2 * single.columns) <= 2 && Math.abs(double.rows - 2 * single.rows) <= 2
   check('typst figure at scale 2 is twice the cells', doubled ? double : { error: `${JSON.stringify(single)} then ${JSON.stringify(double)}` })
+  // A figure of fixed size wider than the layout width: drawn at its own
+  // width up to the terminal's, shrunk to fit past it, never cut off.
+  const wide = '#rect(width: 60em, height: 3em)[wide]'
+  const pastLayout = await typst.render({ typst: wide, maxColumns: 40, fitColumns: 200 })
+  check('typst wide figure grows past the layout width', !isFailure(pastLayout) && pastLayout.columns > 40 && pastLayout.columns <= 200 ? pastLayout : { error: JSON.stringify(pastLayout) })
+  const shrunk = await typst.render({ typst: wide, maxColumns: 40, fitColumns: 60 })
+  check('typst figure wider than the terminal shrinks to fit it', !isFailure(shrunk) && shrunk.columns <= 60 && shrunk.columns >= 55 ? shrunk : { error: JSON.stringify(shrunk) })
   check('typst syntax error is reported', await typst.render({ typst: '#let x = (', maxColumns: 40 }), true)
 }
 

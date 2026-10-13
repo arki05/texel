@@ -40,14 +40,30 @@
   set table(stroke: fg, inset: 0.45em)
   context {
     let maxw = int(input("max-columns")) * cw
+    // The widest the picture may be: the terminal's width, past `max-columns`
+    // for a figure of fixed size, which cannot wrap.
+    let fitw = calc.max(int(input("fit-columns")), int(input("max-columns"))) * cw
     // Its width laid out within the allowed one: a figure's own, all of it
     // for what stretches to fill it (a `1fr` column, a full-width box).
     let natural = measure(body, width: maxw).width
     if natural == 0pt { panic("the block draws nothing") }
+    // A measure within a width answers at most that width, so a figure of
+    // fixed size wider than the layout width (a fletcher diagram, a cetz
+    // canvas) is told from prose by its own width: wider, and no taller laid
+    // out at the layout width, where prose would wrap. It keeps its width.
+    let free = measure(body).width
+    let fixed = free > maxw and measure(block(width: maxw, body)).height == measure(block(width: free, body)).height
+    if fixed { natural = free }
+    // Such a figure wider than the terminal is shrunk to fit it, not cut
+    // off; nothing else is ever scaled, so text keeps the terminal's size.
+    let shrunk = fixed and natural + cw > fitw
+    let body = if shrunk { scale(x: (fitw - cw) / natural * 100%, y: (fitw - cw) / natural * 100%, reflow: true, body) } else { body }
     // Laid out at its own width with a cell to spare where that fits
     // (render/typst/backend.ts tells natural size by it being narrower than
-    // allowed), else at the full width, so its prose wraps.
-    let w = if natural + cw <= maxw { calc.ceil((natural + cw) / cw) * cw } else { maxw }
+    // allowed; a figure past `max-columns` too), else at the full width, so
+    // its prose wraps; a shrunk figure at the terminal's. Never past that:
+    // the division can land a hair over a whole cell.
+    let w = if shrunk { fitw } else if fixed or natural + cw <= maxw { calc.min(fitw, calc.ceil((natural + cw) / cw) * cw) } else { maxw }
     // Its height measured at that width. Typst measures text from the first
     // line's cap height to the last one's baseline: room above for ascenders
     // and accents, below for descenders.

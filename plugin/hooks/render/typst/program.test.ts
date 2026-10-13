@@ -9,7 +9,11 @@ describe('program', () => {
   test("the block's markup is the body of texel.typ's typst-block; the rest are inputs", () => {
     const { source, inputs } = program(block(80, '= Title'), style)
     expect(source).toBe('#import "/texel.typ": *\n#typst-block[\n= Title\n]\n')
-    expect(inputs).toEqual({ 'cell-width': '8', 'cell-height': '17', 'x-height': '7.15', foreground: 'e6e6e6', 'max-columns': '80' })
+    expect(inputs).toEqual({ 'cell-width': '8', 'cell-height': '17', 'x-height': '7.15', foreground: 'e6e6e6', 'max-columns': '80', 'fit-columns': '80' })
+  })
+
+  test('a figure may be as wide as the columns it fits in, past those it is laid out in', () => {
+    expect(program({ ...block(80), fitColumns: 200 }, style).inputs).toMatchObject({ 'max-columns': '80', 'fit-columns': '200' })
   })
 
   test('drawn at TYPST_PX_PER_COLUMN pixels to a column: 24 px over an 8pt cell is 216 ppi', () => {
@@ -25,6 +29,7 @@ describe('program', () => {
   test('a block depends on the width; width-free, its programs agree', () => {
     expect(program(block(40), style)).not.toEqual(program(block(120), style))
     expect(widthFree(program(block(40), style))).toEqual(widthFree(program(block(120), style)))
+    expect(widthFree(program({ ...block(40), fitColumns: 90 }, style))).toEqual(widthFree(program(block(120), style)))
   })
 
   test("a job's zoom multiplies the style's scale", () => {

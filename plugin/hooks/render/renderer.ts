@@ -31,8 +31,13 @@ export type BlockRenderer = (body: string, maxColumns: number, zoom?: number) =>
 
 export type Renderers = { inline: InlineRenderer; blocks: Record<BlockKind, BlockRenderer> }
 
-/** Typst markup, laid out at most `maxColumns` wide: a figure, or prose that wraps; `zoom` times as large as the style makes it. */
-export type TypstJob = { typst: string; maxColumns: number; zoom?: number }
+/**
+ * Typst markup, laid out at most `maxColumns` wide: a figure, or prose that
+ * wraps; `zoom` times as large as the style makes it. A figure of fixed size
+ * may be as wide as `fitColumns` (the terminal's width; `maxColumns` unless
+ * given), and is shrunk to fit past it.
+ */
+export type TypstJob = { typst: string; maxColumns: number; fitColumns?: number; zoom?: number }
 
 /** Typst in a process of its own: what it has already made, if anything, or what a run makes. */
 export type TypstBackend = {

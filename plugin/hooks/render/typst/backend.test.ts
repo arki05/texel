@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { Rendered } from '../result'
-import { createTypstBackend, TypstCache, type Io } from './backend'
+import type { TypstJob } from '../renderer'
+import { createTypstBackend, TypstCache, typstBlocks, type Io } from './backend'
 import type { Compiler } from './compiler'
 import type { TypstStyle } from './program'
 
@@ -126,6 +127,15 @@ describe('typst backend', () => {
     expect(await backend(new TypstCache(), undefined, true, 2).render(block())).toMatchObject({ columns: 30, rows: 6 })
   })
 
+  test('a figure wider than its layout width is reused at any terminal width it fits, not past it', async () => {
+    const { backend, calls } = world({ size: [30, 3] })
+    const b = backend()
+    await b.render({ typst: 'figure', maxColumns: 20, fitColumns: 100 })
+    expect(await b.ready({ typst: 'figure', maxColumns: 20, fitColumns: 40 })).toMatchObject({ columns: 30 })
+    expect(await b.ready({ typst: 'figure', maxColumns: 20, fitColumns: 25 })).toBe(undefined)
+    expect(calls.compile).toBe(1)
+  })
+
   test('with packages off, a block importing one is skipped, never run; others are drawn', async () => {
     const { backend, calls } = world()
     const b = backend(new TypstCache(), undefined, false)
@@ -143,5 +153,24 @@ describe('typst backend', () => {
     expect(compiledTo[0]).toMatch(/\.png\.\w+\.part$/)
     expect('file' in drawn.picture && disk.has(drawn.picture.file)).toBe(true)
     expect([...disk.keys()].some(path => path.endsWith('.part'))).toBe(false)
+  })
+})
+
+describe('typstBlocks', () => {
+  // The jobs a draw asks of a backend that has nothing ready.
+  async function jobs(maxWidth: number, ...columns: number[]) {
+    const asked: TypstJob[] = []
+    const backend = { ready: async () => undefined, render: async (job: TypstJob) => (asked.push(job), { error: 'unused' }) }
+    const draw = typstBlocks(backend, maxWidth, () => {})
+    for (const c of columns) await draw('x', c, 1.5)
+    return asked
+  }
+
+  test('laid out at most typstMaxWidth wide; a figure may use the terminal, counted past that in steps of ten', async () => {
+    expect(await jobs(120, 100, 203, 209)).toEqual([
+      { typst: 'x', maxColumns: 100, fitColumns: 100, zoom: 1.5 },
+      { typst: 'x', maxColumns: 120, fitColumns: 200, zoom: 1.5 },
+      { typst: 'x', maxColumns: 120, fitColumns: 200, zoom: 1.5 },
+    ])
   })
 })
