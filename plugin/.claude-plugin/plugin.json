@@ -41,6 +41,12 @@
       "description": "The widest a typst block is laid out, in terminal columns: a wider terminal centres it, a narrower one fits it to its width.",
       "default": 120
     },
+    "typstScale": {
+      "type": "number",
+      "title": "Typst block scale",
+      "description": "How large typst blocks are drawn: 1 sets their text at the terminal's size, 1.5 draws all of a block half as large again. Drawn at that size, so it stays sharp.",
+      "default": 1
+    },
     "inlineSize": {
       "type": "number",
       "title": "Inline math size",

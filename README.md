@@ -75,6 +75,7 @@ All in `/config`, under texel.
 | `typstColor` | empty | Colour of typst blocks' text; empty follows the text colour. |
 | `typstPackages` | on | Let typst blocks import packages (typst downloads them). Off: such a block shows its source; best effort, as an import whose path is held in a variable is not caught. |
 | `typstMaxWidth` | 120 | The widest a typst block is laid out, in columns: a wider terminal centres it, a narrower one fits it. |
+| `typstScale` | 1 | How large typst blocks are drawn: 1 sets their text at the terminal's size; 1.5 draws all of a block, a diagram in cm included, half as large again. Drawn at that size, so as sharp. |
 | `inlineSize` | 1.2 | Inline math's size against the text's x-height. |
 | `inlineMinScale` | 0.75 | How far a formula may shrink before its line gains a row. |
 | `inlineMaxScale` | 1 | How far a formula smaller than its row may grow to fill it. |
@@ -115,7 +116,9 @@ split into prose, inline math, display math and typst blocks.
   corpus of formulas.
 - **typst blocks** go to the `typst` command line, a few at a time, and are
   cached by content in your cache folder (`~/Library/Caches/texel`, or
-  `$XDG_CACHE_HOME/texel`).
+  `$XDG_CACHE_HOME/texel`). A block is laid out on the terminal's cells with
+  its text at the terminal's size (at `typstScale`, on cells that much
+  smaller), and drawn at 24 pixels to a column whatever its scale.
 - **Inline formulas** are measured, then fitted into their line in whole
   terminal rows; texel wraps those paragraphs itself so every row lines up.
 - **Nothing waits.** A picture not ready yet shows its source and is drawn

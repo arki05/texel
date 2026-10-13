@@ -18,3 +18,9 @@ test('typst blocks are drawn on the terminal\'s background, which the note names
   expect(noteText({ typst: true, packages: true, theme: 'dark' })).toContain('dark background')
   expect(noteText({ typst: true, packages: true, theme: 'light' })).toContain('show on light')
 })
+
+test('typst blocks: no text size of their own, and diagrams in em where packages draw them', () => {
+  expect(noteText({ typst: true, packages: true, theme: 'dark' })).toContain('#set text(size: ...)')
+  expect(noteText({ typst: true, packages: true, theme: 'dark' })).toContain('in em')
+  expect(noteText({ typst: true, packages: false, theme: 'dark' })).not.toContain('in em')
+})

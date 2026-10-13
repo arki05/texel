@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { Resvg } from '@resvg/resvg-js'
 
 import { DEFAULT_FIT, fitInline } from '../plugin/hooks/layout/fit.ts'
-import { FONTS, gridFor, type Ink } from '../plugin/hooks/geometry.ts'
+import { FONTS, gridFor, TYPST_PX_PER_COLUMN, type Ink } from '../plugin/hooks/geometry.ts'
 import { hash } from '../plugin/hooks/render/hash.ts'
 import { Limiter } from '../plugin/hooks/render/typst/limit.ts'
 import { createMathBackend, MathCache } from '../plugin/hooks/render/mathjax/backend.ts'
@@ -121,7 +121,9 @@ const version = /typst (\S+)/.exec(spawnSync('typst', ['--version'], { encoding:
 if (!version) {
   console.log('skip typst blocks: typst not found')
 } else {
-  const typst = createTypstBackend({
+  const libraryHash = await hash(readFileSync(join(lib, 'texel.typ'), 'utf8'))
+  // The backend at a scale: 1 sets a block's text at the terminal's size.
+  const typstAt = (scale: number) => createTypstBackend({
     io: {
       exists: async path => existsSync(path),
       readBase64: async path => readFileSync(path).toString('base64'),
@@ -135,14 +137,15 @@ if (!version) {
       limiter: new Limiter(4),
       libDir: lib,
       version,
-      libraryHash: await hash(readFileSync(join(lib, 'texel.typ'), 'utf8')),
+      libraryHash,
     }),
     cache: new TypstCache(),
     // A fresh folder: every run happens, none is served from an earlier one.
     cacheDir: mkdtempSync(join(tmpdir(), 'texel-smoke-')),
-    style: { grid, color: 'e6e6e6' },
+    style: { grid, color: 'e6e6e6', scale },
     allowPackages: true,
   })
+  const typst = typstAt(1)
   check('typst figure', await typst.render({ typst: '$ sum_(k=1)^n k $', maxColumns: 80 }))
   check('typst prose', await typst.render({ typst: 'A paragraph long enough to wrap. '.repeat(8), maxColumns: 40 }))
   check('typst block with its own page rule', await typst.render({ typst: '#set page(width: auto, margin: 8pt)\n$ a^2 + b^2 = c^2 $', maxColumns: 80 }))
@@ -162,7 +165,8 @@ if (!version) {
     { name: 'a cetz canvas', packages: true, typst: '#import "@preview/cetz:0.4.2"\n#cetz.canvas({ import cetz.draw: *; set-style(stroke: white); line((0, 0), (3, 1)); circle((4, 0.5), radius: 0.5) })' },
   ]
   const withPackages = process.argv.includes('--packages')
-  const pixelsPerCell = grid.cellWidth * 3
+  const pixelsPerRow = (TYPST_PX_PER_COLUMN * grid.cellHeight) / grid.cellWidth
+  const whole = (pixels: number, perCell: number) => Math.abs(pixels / perCell - Math.round(pixels / perCell)) < 0.02
   for (const block of corpus) {
     if (block.packages && !withPackages) {
       console.log(`skip ${`typst ${block.name}`.padEnd(42)} (imports a package: run with --packages)`)
@@ -176,10 +180,15 @@ if (!version) {
         continue
       }
       const { width, height } = pngSize(readFileSync(drawn.picture.file).toString('base64'))
-      const whole = Math.abs(width / pixelsPerCell - Math.round(width / pixelsPerCell)) < 0.02 && height % (grid.cellHeight * 3) === 0
-      check(name, whole && drawn.columns <= maxColumns && drawn.rows < 60 ? drawn : { error: `${width} x ${height} px, ${drawn.columns} x ${drawn.rows} cells` })
+      const onCells = whole(width, TYPST_PX_PER_COLUMN) && whole(height, pixelsPerRow)
+      check(name, onCells && drawn.columns <= maxColumns && drawn.rows < 60 ? drawn : { error: `${width} x ${height} px, ${drawn.columns} x ${drawn.rows} cells` })
     }
   }
+  // Drawn twice as large: twice the cells, at the same pixels per cell.
+  const figure = '$ sum_(k=1)^n k = n(n+1)/2 $'
+  const [single, double] = [await typst.render({ typst: figure, maxColumns: 80 }), await typstAt(2).render({ typst: figure, maxColumns: 80 })]
+  const doubled = !isFailure(single) && !isFailure(double) && Math.abs(double.columns - 2 * single.columns) <= 2 && Math.abs(double.rows - 2 * single.rows) <= 2
+  check('typst figure at scale 2 is twice the cells', doubled ? double : { error: `${JSON.stringify(single)} then ${JSON.stringify(double)}` })
   check('typst syntax error is reported', await typst.render({ typst: '#let x = (', maxColumns: 40 }), true)
 }
 

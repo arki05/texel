@@ -26,6 +26,8 @@ export type Settings = {
   typstPackages: boolean
   /** The widest a typst block is laid out, in columns. */
   typstMaxWidth: number
+  /** How large typst blocks are drawn against the text: 1 sets their text at its size. */
+  typstScale: number
   /** Whether the system prompt tells Claude this terminal typesets math. */
   promptNote: boolean
 }
@@ -87,6 +89,7 @@ export function readSettings(options: PluginOptions): Settings {
     images: choice(options, 'images', ['auto', 'always', 'never']),
     typstPackages: flag(options, 'typstPackages'),
     typstMaxWidth: Math.round(number(options, 'typstMaxWidth', 120, 20, 255)),
+    typstScale: number(options, 'typstScale', 1, 0.5, 3),
     promptNote: flag(options, 'promptNote'),
   }
 }

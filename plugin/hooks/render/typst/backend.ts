@@ -2,6 +2,7 @@
 // typst must run and has a Compiler run it, keeps every picture on disk by
 // content hash and in a Memo, and answers from those whenever it can.
 
+import { TYPST_PX_PER_COLUMN } from '../../geometry'
 import { hash } from '../hash'
 import { Memo } from './memo'
 import { pngSize } from '../png'
@@ -61,8 +62,8 @@ export function typstBlocks(backend: TypstBackend, maxWidth: number, redraw: () 
 
 export function createTypstBackend({ io, compiler, cache, style, cacheDir, allowPackages }: TypstOptions): TypstBackend {
   const refused = (job: TypstJob) => !allowPackages && importsPackage(job.typst)
-  // A run is known by what makes its output: the compiler, its main file, its inputs.
-  const keyOf = ({ source, inputs }: Program) => hash(JSON.stringify([compiler.id, source, inputs]))
+  // A run is known by what makes its output: the compiler, its main file, its inputs, its ppi.
+  const keyOf = ({ source, inputs, ppi }: Program) => hash(JSON.stringify([compiler.id, source, inputs, ppi]))
 
   // A picture is made under a name of its own and moved into place when
   // whole, so a run cut short never leaves half a file under the real name,
@@ -74,13 +75,15 @@ export function createTypstBackend({ io, compiler, cache, style, cacheDir, allow
     return failure
   }
 
-  // A PNG as a picture of whole cells. Shrunk to fit, one past the Image's
-  // limit would be a sliver, so that is a failure instead.
+  // A PNG as a picture of whole cells, at any scale TYPST_PX_PER_COLUMN
+  // pixels to a column and as many more to a row as a cell is taller than
+  // wide. Shrunk to fit, one past the Image's limit would be a sliver, so
+  // that is a failure instead.
   async function pictureOf(file: string): Promise<Rendered | RenderFailure> {
     const { width, height } = pngSize(await io.readBase64(file))
-    const points = compiler.ppi / 72
-    const columns = Math.max(1, Math.round(width / (style.grid.cellWidth * points)))
-    const rows = Math.max(1, Math.round(height / (style.grid.cellHeight * points)))
+    const { cellWidth, cellHeight } = style.grid
+    const columns = Math.max(1, Math.round(width / TYPST_PX_PER_COLUMN))
+    const rows = Math.max(1, Math.round(height / ((TYPST_PX_PER_COLUMN * cellHeight) / cellWidth)))
     return tooLarge(columns, rows) ?? { picture: { file }, columns, rows }
   }
 

@@ -2,19 +2,33 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { importsPackage, program, widthFree, withoutPageRules, type TypstStyle } from './program'
 
-const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6' }
+const style: TypstStyle = { grid: { cellWidth: 8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6', scale: 1 }
 const block = (maxColumns: number, typst = 'hi') => ({ typst, maxColumns })
 
 describe('program', () => {
   test("the block's markup is the body of texel.typ's typst-block; the rest are inputs", () => {
     const { source, inputs } = program(block(80, '= Title'), style)
     expect(source).toBe('#import "/texel.typ": *\n#typst-block[\n= Title\n]\n')
-    expect(inputs).toEqual({ 'cell-width': '7.8', 'cell-height': '17', 'x-height': '7.15', foreground: 'e6e6e6', 'max-columns': '80' })
+    expect(inputs).toEqual({ 'cell-width': '8', 'cell-height': '17', 'x-height': '7.15', foreground: 'e6e6e6', 'max-columns': '80' })
+  })
+
+  test('drawn at TYPST_PX_PER_COLUMN pixels to a column: 24 px over an 8pt cell is 216 ppi', () => {
+    expect(program(block(80), style).ppi).toBe(216)
+  })
+
+  test('at a scale, laid out on cells that much smaller, its text unchanged, and drawn at that much the ppi', () => {
+    const { inputs, ppi } = program(block(80), { ...style, scale: 2 })
+    expect(inputs).toMatchObject({ 'cell-width': '4', 'cell-height': '8.5', 'x-height': '7.15', 'max-columns': '80' })
+    expect(ppi).toBe(432)
   })
 
   test('a block depends on the width; width-free, its programs agree', () => {
     expect(program(block(40), style)).not.toEqual(program(block(120), style))
     expect(widthFree(program(block(40), style))).toEqual(widthFree(program(block(120), style)))
+  })
+
+  test('width-free, a program still depends on its scale', () => {
+    expect(widthFree(program(block(40), style))).not.toEqual(widthFree(program(block(40), { ...style, scale: 1.5 })))
   })
 })
 

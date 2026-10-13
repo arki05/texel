@@ -15,6 +15,7 @@ describe('readSettings', () => {
       images: 'auto',
       typstPackages: true,
       typstMaxWidth: 120,
+      typstScale: 1,
       promptNote: true,
     })
   })
@@ -27,6 +28,7 @@ describe('readSettings', () => {
   test('numbers are held to ranges that cannot break the layout', () => {
     const { inlineSize, fit } = readSettings({ inlineSize: 50, inlineMinScale: -1, inlineShiftUp: 'lots' })
     expect([inlineSize, fit.minScale, fit.shiftUp]).toEqual([3, 0.1, DEFAULT_FIT.shiftUp])
+    expect([readSettings({ typstScale: 10 }).typstScale, readSettings({ typstScale: 0 }).typstScale, readSettings({ typstScale: 1.5 }).typstScale]).toEqual([3, 0.5, 1.5])
   })
 
   test('a field cleared, or only spaces, is its default, not its least', () => {

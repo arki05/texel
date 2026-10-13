@@ -2,7 +2,6 @@
 // a few at a time. Each program's source goes in on stdin, its inputs as
 // `--input` flags, with texel.typ's folder as the root.
 
-import { PX_PER_PT } from '../../geometry'
 import type { RenderFailure } from '../result'
 import type { Compiler } from './compiler'
 import type { Limiter } from './limit'
@@ -21,8 +20,6 @@ export type CliOptions = {
   libraryHash: string
 }
 
-const PPI = PX_PER_PT * 72
-
 // Typst's own error: its first lines, from the first `error:` on, past the
 // progress typst writes to stderr too (`downloading @preview/…`).
 function complaint(stderr: string): RenderFailure {
@@ -33,13 +30,12 @@ function complaint(stderr: string): RenderFailure {
 
 export function cliCompiler({ run, limiter, libDir, version, libraryHash }: CliOptions): Compiler {
   return {
-    id: `typst-cli ${version} ppi ${PPI} texel.typ ${libraryHash}`,
-    ppi: PPI,
+    id: `typst-cli ${version} texel.typ ${libraryHash}`,
 
     async compile(program, out) {
       const inputs = Object.entries(program.inputs).flatMap(([name, value]) => ['--input', `${name}=${value}`])
       // The format said, not read off `out`, which may be a temporary name.
-      const argv = ['typst', 'compile', '--root', libDir, ...inputs, '--format', 'png', '--ppi', String(PPI), '-', out]
+      const argv = ['typst', 'compile', '--root', libDir, ...inputs, '--format', 'png', '--ppi', String(program.ppi), '-', out]
       const result = await limiter.run(() => run(argv, program.source))
       return result.exitCode === 0 ? undefined : complaint(result.stderr)
     },

@@ -2,36 +2,49 @@
 // as a fixed main file and the inputs it reads. Everything that varies is an
 // input; only the block's own markup is source. Pure: jobs in, programs out.
 
-import type { Grid } from '../../geometry'
+import { TYPST_PX_PER_COLUMN, type Grid } from '../../geometry'
 import type { TypstJob } from '../renderer'
 
-/** How typst blocks are set: on which grid, in what colour (six hex digits). */
-export type TypstStyle = { grid: Grid; color: string }
+/**
+ * How typst blocks are set: on which grid, in what colour (six hex digits),
+ * and how large against the text (`scale`, the `typstScale` setting; 1 sets
+ * a block's text at the terminal's size).
+ */
+export type TypstStyle = { grid: Grid; color: string; scale: number }
 
-/** One run of typst: a main file and the inputs it reads. */
-export type Program = { source: string; inputs: Record<string, string> }
+/** One run of typst: a main file, the inputs it reads, and the ppi its PNG is drawn at. */
+export type Program = { source: string; inputs: Record<string, string>; ppi: number }
 
 /** The input that ties a program to the transcript's width. */
 const WIDTH = 'max-columns'
 
-/** The program that lays out `job` through texel.typ's `typst-block`. */
-export function program(job: TypstJob, { grid, color }: TypstStyle): Program {
+/**
+ * The program that lays out `job` through texel.typ's `typst-block`.
+ *
+ * At `scale`, the block is laid out on cells `scale` times smaller, its text
+ * still the terminal's size, and drawn at a ppi that gives every one of those
+ * cells TYPST_PX_PER_COLUMN pixels across: put on the real cells, all of it,
+ * a diagram's lengths in cm included, is `scale` times as large, and as sharp.
+ */
+export function program(job: TypstJob, { grid, color, scale }: TypstStyle): Program {
+  const cellWidth = grid.cellWidth / scale
   return {
     source: `#import "/texel.typ": *\n#typst-block[\n${withoutPageRules(job.typst)}\n]\n`,
     inputs: {
-      'cell-width': String(grid.cellWidth),
-      'cell-height': String(grid.cellHeight),
+      'cell-width': String(cellWidth),
+      'cell-height': String(grid.cellHeight / scale),
       'x-height': String(grid.xHeight),
       foreground: color,
       [WIDTH]: String(job.maxColumns),
     },
+    ppi: (TYPST_PX_PER_COLUMN / cellWidth) * 72,
   }
 }
 
 /** `program` as it would be at any width: what a block drawn at its natural size is known by. */
-export function widthFree({ source, inputs }: Program): Program {
-  const { [WIDTH]: _, ...rest } = inputs
-  return { source, inputs: rest }
+export function widthFree({ inputs, ...rest }: Program): Program {
+  const { [WIDTH]: _, ...others } = inputs
+  return { ...rest, inputs: others }
 }
 
 // A page rule in markup (`#set page(`) or at the start of a statement in code.

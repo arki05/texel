@@ -4,7 +4,7 @@ import { cliCompiler, type Run } from './cli'
 import { Limiter } from './limit'
 import type { Program } from './program'
 
-const block: Program = { source: '#import "/texel.typ": *\n#typst-block[\nhi\n]\n', inputs: { foreground: 'e6e6e6', 'max-columns': '80' } }
+const block: Program = { source: '#import "/texel.typ": *\n#typst-block[\nhi\n]\n', inputs: { foreground: 'e6e6e6', 'max-columns': '80' }, ppi: 223.5 }
 
 function compiler(answer: { exitCode: number; stderr?: string }) {
   const runs: { argv: string[]; stdin: string }[] = []
@@ -16,7 +16,7 @@ function compiler(answer: { exitCode: number; stderr?: string }) {
 }
 
 describe('cliCompiler', () => {
-  test('compile: the source on stdin, the inputs as flags, PNG named whatever the file is called', async () => {
+  test("compile: the source on stdin, the inputs as flags, PNG at the program's ppi, named whatever the file is called", async () => {
     const { typst, runs } = compiler({ exitCode: 0 })
     expect(await typst.compile(block, '/out.png.x1.part')).toBe(undefined)
     const [{ argv, stdin }] = runs as [{ argv: string[]; stdin: string }]
@@ -24,7 +24,7 @@ describe('cliCompiler', () => {
     expect(argv).toEqual([
       'typst', 'compile', '--root', '/lib',
       '--input', 'foreground=e6e6e6', '--input', 'max-columns=80',
-      '--format', 'png', '--ppi', '216', '-', '/out.png.x1.part',
+      '--format', 'png', '--ppi', '223.5', '-', '/out.png.x1.part',
     ])
   })
 
@@ -38,7 +38,7 @@ describe('cliCompiler', () => {
     expect(await compiler({ exitCode: 1, stderr }).typst.compile(block, '/out.png')).toEqual({ error: 'error: unknown variable: nod\n  ┌─ <stdin>:3' })
   })
 
-  test('its id names everything that changes its output', () => {
-    expect(compiler({ exitCode: 0 }).typst.id).toBe('typst-cli 0.15.1 ppi 216 texel.typ abc')
+  test('its id names everything of its own that changes its output; the ppi is the program\'s', () => {
+    expect(compiler({ exitCode: 0 }).typst.id).toBe('typst-cli 0.15.1 texel.typ abc')
   })
 })

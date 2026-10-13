@@ -138,7 +138,7 @@ async function draw($: EngineInterface, e: RenderInput<'AssistantMessage' | 'Use
   const grid = gridFor(settings.font)
   const macros = await $.fs.read(`${known.machine.home}/${MACROS}`).catch(() => '')
   const math = createMathBackend(mathCache, { grid, color: settings.mathColor ?? TEXT[current], inlineSize: settings.inlineSize, macros })
-  const typst = typstRenderer($, known, { grid, color: settings.typstColor ?? TEXT[current] }, settings)
+  const typst = typstRenderer($, known, { grid, color: settings.typstColor ?? TEXT[current], scale: settings.typstScale }, settings)
   const columns = (e.viewport?.columns ?? 100) - GUTTER - (isPrompt ? 2 : 0)
   const laid = await layoutMessage({ inline: math, blocks: { math: math.block, typst } }, segments, { grid, fit: settings.fit, columns })
   return drawMessage($.ui.resolve(e), laid, isPrompt ? PROMPT_BACKGROUND[current] : undefined)

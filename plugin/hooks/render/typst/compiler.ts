@@ -11,8 +11,6 @@ export type Compiler = {
    * compiler are never served for another.
    */
   readonly id: string
-  /** The pixels per inch every PNG is drawn at. */
-  readonly ppi: number
-  /** Draws `program` into a PNG at `out`. */
+  /** Draws `program` into a PNG at `out`, at the program's ppi. */
   compile(program: Program, out: string): Promise<RenderFailure | undefined>
 }

@@ -21,6 +21,13 @@ export type Ink = { width: number; above: number; below: number }
  */
 export const PX_PER_PT = 3
 
+/**
+ * Pixels a typst picture gives each column it covers, at any scale: about
+ * what PX_PER_PT gives a cell. A block drawn larger is drawn at a higher ppi,
+ * never stretched, so it is as sharp as one at the text's size.
+ */
+export const TYPST_PX_PER_COLUMN = 24
+
 /** The most cells a picture covers, each way: an Image's limit. */
 export const MAX_CELLS = 255
 

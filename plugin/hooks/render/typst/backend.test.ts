@@ -5,14 +5,15 @@ import { createTypstBackend, TypstCache, type Io } from './backend'
 import type { Compiler } from './compiler'
 import type { TypstStyle } from './program'
 
-const style: TypstStyle = { grid: { cellWidth: 7.8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6' }
+const style: TypstStyle = { grid: { cellWidth: 8, cellHeight: 17, xHeight: 7.15, baseline: 13.14 }, color: 'e6e6e6', scale: 1 }
 
-// A PNG's first 24 bytes, for a picture `columns` x `rows` cells at 216 ppi.
+// A PNG's first 24 bytes, for a picture `columns` x `rows` cells: 24 px to
+// a column, 51 to a row of a cell 17pt tall and 8pt wide.
 function png(columns: number, rows: number) {
   const bytes = new Uint8Array(24)
   const view = new DataView(bytes.buffer)
-  view.setUint32(16, Math.round(columns * 7.8 * 3))
-  view.setUint32(20, Math.round(rows * 17 * 3))
+  view.setUint32(16, columns * 24)
+  view.setUint32(20, rows * 51)
   return btoa(String.fromCharCode(...bytes))
 }
 
@@ -32,7 +33,6 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
   }
   const compiler: Compiler = {
     id,
-    ppi: 216,
     async compile(_, out) {
       calls.compile++
       compiledTo.push(out)
@@ -47,7 +47,8 @@ function world({ id = 'test', size = [4, 2] as [number, number] } = {}) {
     calls,
     compiledTo,
     failWith: (f: typeof fail) => (fail = f),
-    backend: (cache = new TypstCache(), c: Compiler = compiler, allowPackages = true) => createTypstBackend({ io, compiler: c, cache, style, cacheDir: '/cache', allowPackages }),
+    backend: (cache = new TypstCache(), c: Compiler = compiler, allowPackages = true, scale = 1) =>
+      createTypstBackend({ io, compiler: c, cache, style: { ...style, scale }, cacheDir: '/cache', allowPackages }),
     compiler,
   }
 }
@@ -110,6 +111,19 @@ describe('typst backend', () => {
     await backend().render(block())
     await backend(new TypstCache(), { ...compiler, id: 'other typst' }).render(block())
     expect([...disk.keys()].filter(path => path.endsWith('.png'))).toHaveLength(2)
+  })
+
+  test('a block at another scale is another picture, made at its own ppi', async () => {
+    const { backend, disk, calls } = world()
+    await backend().render(block())
+    await backend(new TypstCache(), undefined, true, 1.5).render(block())
+    expect(calls.compile).toBe(2)
+    expect([...disk.keys()].filter(path => path.endsWith('.png'))).toHaveLength(2)
+  })
+
+  test('a picture covers the cells its pixels make, at any scale: 24 px to a column', async () => {
+    const { backend } = world({ size: [30, 6] })
+    expect(await backend(new TypstCache(), undefined, true, 2).render(block())).toMatchObject({ columns: 30, rows: 6 })
   })
 
   test('with packages off, a block importing one is skipped, never run; others are drawn', async () => {

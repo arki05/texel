@@ -21,8 +21,9 @@ export function noteText({ typst, packages, theme }: { typst: boolean; packages:
         : 'A fenced ```typst block is typeset by typst and shown as a picture at the terminal\'s width: use one for a table or a typeset derivation; it cannot import packages here.',
       'Its text cannot be selected or copied, so keep code, commands and anything to copy out of it.',
       `It is drawn on the terminal's ${theme} background, its text and lines in the text colour; give ${packages ? 'shapes and cetz drawings' : 'shapes'} colours that show on ${theme}.`,
-      'Leave out page setup (#set page): the picture is sized to fit the terminal.',
+      'Leave out page setup (#set page) and the text size (#set text(size: ...)): the picture is sized to fit the terminal, its text at the terminal\'s size.',
     )
+    if (packages) lines.push('Give a diagram\'s lengths in em (fletcher\'s spacing and insets, a cetz canvas\'s length), so it is drawn in proportion to its text.')
   }
   return lines.join('\n')
 }
