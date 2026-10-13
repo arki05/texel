@@ -329,3 +329,40 @@ test('with typst, the model is told about typst blocks too', { timeoutMs: 15000 
   const { sections } = await composed($)
   expect(sections.find(section => section.id === 'texel:math')?.text).toContain('```typst')
 })
+
+// The footer's mode labels, mounted, with the engine's `modes`.
+const modes = ($: Engine, labels: string[] = []) =>
+  $.ui.mount({ plugin: 'texel', surface: 'terminal', component: 'SessionMode', props: { modes: labels } as never, viewport: { columns: 100, rows: 40 } })
+
+// Every Button's label in a drawn tree.
+function buttons(tree: RenderElement): string[] {
+  const node = tree as unknown as Node
+  const own = node.type === 'Button' ? [String(node.props?.label)] : []
+  return [...own, ...(node.children ?? []).flatMap(child => (child && typeof child === 'object' ? buttons(child as RenderElement) : []))]
+}
+
+test("the footer names texel among its modes, and a click on it switches every message to its source and back", { timeoutMs: 15000 }, async ($, on) => {
+  const { show } = world(on)
+  const footer = await modes($, ['focus'])
+  expect(buttons(await footer.drawn())).toEqual(['texel: rendered'])
+  expect(await footer.find({ text: ' & ' })).toBeDefined()
+  await $.ui.press({ plugin: 'texel', key: 'texel:sources' })
+  expect(buttons(await footer.drawn())).toEqual(['texel: source'])
+  expect((await (await show($, 'so \\(x\\) here')).find({ type: 'Text' }))?.text).toBe('engine')
+  expect((await texel($, 'source')).text).toContain('rendering again')
+  expect(buttons(await footer.drawn())).toEqual(['texel: rendered'])
+})
+
+test('with no other modes, texel stands alone in the footer; where it does not draw, the engine has it', { timeoutMs: 15000 }, async ($, on) => {
+  world(on)
+  const footer = await modes($)
+  expect(buttons(await footer.drawn())).toEqual(['texel: rendered'])
+  expect(await footer.find({ text: ' & ' })).toBeUndefined()
+})
+
+test('where texel does not draw, the footer is the engine\'s', { timeoutMs: 15000 }, async ($, on) => {
+  world(on, { machine: { ...GHOSTTY, tmux: '/tmp/tmux-501/default' } })
+  const footer = await modes($, ['focus'])
+  expect(buttons(await footer.drawn())).toEqual([])
+  expect((await footer.find({ type: 'Text' }))?.text).toBe('engine')
+})

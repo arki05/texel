@@ -22,6 +22,7 @@ import { cliCompiler, type Run } from './render/typst/cli'
 import type { TypstStyle } from './render/typst/program'
 import { readSettings, type Settings } from './settings'
 import { drawMessage, type BlockControls } from './view/message'
+import { drawModes } from './view/mode'
 
 // The folder of texel.typ, within the plugin.
 const LIB = 'hooks/render/typst'
@@ -220,6 +221,14 @@ export const register: Register = (on, options) => {
     return { sections: [...composed.sections, section] }
   })
 
+  // texel's label among the footer's mode labels, where it draws: which way
+  // messages are shown, and a click to switch them.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || whyNoPictures(settings.images, (await hostOf($)).machine)) return next(e)
+    const sources = await read($, showingSource)
+    return drawModes($.ui.resolve(e), await next(e), e.props.modes.length > 0, sources, () => void update($, showingSource, shown => !shown))
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'texel', description: 'What texel draws with; `source` shows sources instead', argumentHint: '[source]', immediate: true })
     return next(e)
@@ -230,7 +239,6 @@ export const register: Register = (on, options) => {
       const why = whyNoPictures(settings.images, (await hostOf($)).machine)
       if (why) return { text: `nothing to switch: texel is not drawing here (${why}), so every message shows as Claude Code draws it` }
       const sources = await update($, showingSource, shown => !shown)
-      $.ui.status(sources ? 'texel: showing sources' : undefined)
       return { text: sources ? 'showing sources; /texel source renders again' : 'rendering again' }
     }
     return { text: status(settings, await hostOf($), await read($, showingSource)) }

@@ -56,6 +56,8 @@ Your own prompts are rendered too.
 | `/texel` | What texel draws with here: pictures on or off, typst found or not. |
 | `/texel source` | Shows every message as its source, for reading or copying, until you run it again. Selecting a rendered formula copies placeholder characters, not its LaTeX. |
 
+The prompt's footer names texel among its modes: `texel: rendered` while messages are rendered, `texel: source` while they show their source. A click on it switches, as `/texel source` does. On a typst block or display math, the pointer shows its own controls: zoom (typst), its source, and a copy of it.
+
 **Your own macros.** `~/.config/texel/macros.tex` is read before every
 formula, so `\newcommand`s there work everywhere; Claude never sees the file.
 
