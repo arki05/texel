@@ -128,31 +128,44 @@ split into prose, inline math, display math and typst blocks.
 
 ## What texel runs, reads and sends
 
-texel draws what is already in your transcript; it sends nothing anywhere
-itself.
+texel draws what is already in your transcript. It sends nothing over the
+network, reads no credential, and passes nothing it reads to a program but
+a typst block's own markup to typst.
 
 - **Reads:** the environment variables `HOME`, `XDG_CACHE_HOME`, `TERM`,
   `TERM_PROGRAM`, `KITTY_WINDOW_ID` and `TMUX` (where its cache lives, and
   whether the terminal shows pictures); your `~/.config/texel/macros.tex`,
-  if you have one; its own `texel.typ`; and the pictures it cached.
-- **Runs**, once when it loads: `uname -s`, `defaults read -g
-  AppleInterfaceStyle` (macOS's light or dark appearance), `typst --version`,
-  `mkdir -p` on its cache folder, and a short `/bin/sh` script (`ls`, `tail`,
-  `rm`) that keeps the newest 4,000 cached pictures and removes the rest.
-  For each typst block: `typst compile`, the block on its stdin and a PNG
-  into the cache, then `mv` to put the finished file in place. LaTeX runs
-  inside the plugin, no program at all.
-- **Network:** none from texel. typst downloads a package from the typst
-  registry when a block imports one (`@preview/...`); turn `typstPackages`
-  off to stop that.
-- **Hooks:** `ui.render` redraws replies and your prompts; `prompt.compose`
-  adds one short section to the system prompt (the note above, which
-  `promptNote` turns off); `session.start` and `command.run` provide
-  `/texel`. It reads Claude Code's theme as it draws, and hooks no setting.
-- **Bundled code:** MathJax and fflate, minified, in the plugin's vendor
-  folders; `npm run build:vendor` rebuilds them byte for byte from the
-  sources named in `scripts/`. Their reflective code (prototypes,
-  `defineProperty`) is MathJax's and fflate's own.
+  if you have one, which goes into MathJax inside the plugin; its own
+  `texel.typ`; and the pictures it cached, which go to the terminal.
+- **Runs**, once when it loads: `uname -s` (which system), `defaults read -g
+  AppleInterfaceStyle` (macOS's light or dark appearance), `typst --version`
+  (whether typst blocks can be drawn), `mkdir -p` on its cache folder, and a
+  short `/bin/sh` script (`ls`, `tail`, `rm`) that keeps the newest 4,000
+  cached pictures there and removes the rest. For each typst block:
+  `typst compile`, the block on its stdin and a PNG into the cache folder,
+  then `mv` to put the finished file in place. These commands carry the
+  cache folder's path and the block's settings as arguments, so they are
+  not all fixed text. LaTeX runs inside the plugin, no program at all.
+- **Sends:** no network request of texel's own. typst downloads a package
+  from the typst registry when a block imports one (`@preview/...`); turn
+  `typstPackages` off to stop that. A block's `copy` control puts its source
+  on your clipboard, as `/copy` does, only when you press it.
+- **Hooks:**
+  - `ui.render`: redraws replies and your prompts, with a block's controls
+    on hover, and adds texel's label to the footer's modes.
+  - `prompt.compose`: adds one short section to the system prompt (the note
+    above, which `promptNote` turns off); it changes nothing else there.
+  - `session.start` and `command.run`: register and answer `/texel`; any
+    other command passes by untouched.
+
+  It keeps which way messages are shown, and each block's zoom, as session
+  state; it reads Claude Code's theme as it draws, and hooks no setting.
+- **Bundled code:** MathJax and fflate, in the plugin's vendor folders, as
+  readable ES modules, not minified; `npm run build:vendor` rebuilds them
+  byte for byte from the sources named in `scripts/`. The longest lines in
+  them are MathJax's glyph outlines, one string per character. Their
+  reflective code (prototypes, `defineProperty`, getters) is MathJax's and
+  fflate's own.
 
 ## Develop
 
