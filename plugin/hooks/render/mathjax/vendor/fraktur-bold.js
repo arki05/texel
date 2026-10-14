@@ -1,1 +1,7 @@
-import{a}from"./chunk-TQTEPTKV.js";import"./chunk-2VCCM6FY.js";export{a as frakturBold};
+import {
+  frakturBold
+} from "./chunk-FPLUOQEN.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  frakturBold
+};

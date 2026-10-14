@@ -1,1 +1,7 @@
-import{a}from"./chunk-J57C33OD.js";import"./chunk-2VCCM6FY.js";export{a as texVariant};
+import {
+  texVariant
+} from "./chunk-E3EGH3YQ.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  texVariant
+};

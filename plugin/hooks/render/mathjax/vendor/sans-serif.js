@@ -1,1 +1,7 @@
-import{a}from"./chunk-LOS7LEZX.js";import"./chunk-2VCCM6FY.js";export{a as sansSerif};
+import {
+  sansSerif
+} from "./chunk-ZO4NW5A4.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  sansSerif
+};

@@ -1,1 +1,6 @@
-import{a}from"./chunk-VOYQPGMQ.js";export{a as script};
+import {
+  script
+} from "./chunk-VI6XJ2EP.js";
+export {
+  script
+};

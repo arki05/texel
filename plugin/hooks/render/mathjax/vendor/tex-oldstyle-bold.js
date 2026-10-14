@@ -1,1 +1,7 @@
-import{a}from"./chunk-7VIRKEID.js";import"./chunk-2VCCM6FY.js";export{a as texOldstyleBold};
+import {
+  texOldstyleBold
+} from "./chunk-R2P44JJ6.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  texOldstyleBold
+};

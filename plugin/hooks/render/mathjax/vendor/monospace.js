@@ -1,1 +1,7 @@
-import{a}from"./chunk-YOPORVUX.js";import"./chunk-2VCCM6FY.js";export{a as monospace};
+import {
+  monospace
+} from "./chunk-AM5I3XOS.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  monospace
+};

@@ -1,1 +1,742 @@
-var I=Uint8Array,H=Uint16Array,mr=Int32Array,fr=new I([0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0,0,0,0]),hr=new I([0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,0,0]),pr=new I([16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15]),Sr=function(r,n){for(var t=new H(31),e=0;e<31;++e)t[e]=n+=1<<r[e-1];for(var i=new mr(t[30]),e=1;e<30;++e)for(var a=t[e];a<t[e+1];++a)i[a]=a-t[e]<<5|e;return{b:t,r:i}},Ur=Sr(fr,2),Fr=Ur.b,gr=Ur.r;Fr[28]=258,gr[258]=28;var Dr=Sr(hr,0),Or=Dr.b,zr=Dr.r,yr=new H(32768);for(l=0;l<32768;++l)K=(l&43690)>>1|(l&21845)<<1,K=(K&52428)>>2|(K&13107)<<2,K=(K&61680)>>4|(K&3855)<<4,yr[l]=((K&65280)>>8|(K&255)<<8)>>1;var K,l,j=function(r,n,t){for(var e=r.length,i=0,a=new H(n);i<e;++i)r[i]&&++a[r[i]-1];var f=new H(n);for(i=1;i<n;++i)f[i]=f[i-1]+a[i-1]<<1;var c;if(t){c=new H(1<<n);var p=15-n;for(i=0;i<e;++i)if(r[i])for(var x=i<<4|r[i],o=n-r[i],s=f[r[i]-1]++<<o,u=s|(1<<o)-1;s<=u;++s)c[yr[s]>>p]=x}else for(c=new H(e),i=0;i<e;++i)r[i]&&(c[i]=yr[f[r[i]-1]++]>>15-r[i]);return c},k=new I(288);for(l=0;l<144;++l)k[l]=8;var l;for(l=144;l<256;++l)k[l]=9;var l;for(l=256;l<280;++l)k[l]=7;var l;for(l=280;l<288;++l)k[l]=8;var l,ar=new I(32);for(l=0;l<32;++l)ar[l]=5;var l,qr=j(k,9,0),Lr=j(k,9,1),Pr=j(ar,5,0),$r=j(ar,5,1),lr=function(r){for(var n=r[0],t=1;t<r.length;++t)r[t]>n&&(n=r[t]);return n},V=function(r,n,t){var e=n/8|0;return(r[e]|r[e+1]<<8)>>(n&7)&t},vr=function(r,n){var t=n/8|0;return(r[t]|r[t+1]<<8|r[t+2]<<16)>>(n&7)},xr=function(r){return(r+7)/8|0},Tr=function(r,n,t){return(n==null||n<0)&&(n=0),(t==null||t>r.length)&&(t=r.length),new I(r.subarray(n,t))};var Hr=["unexpected EOF","invalid block type","invalid length/literal","invalid distance","stream finished","no stream handler",,"no callback","invalid UTF-8 data","extra field too long","date not in range 1980-2099","filename too long","stream finishing","invalid zip data"],W=function(r,n,t){var e=new Error(n||Hr[r]);if(e.code=r,Error.captureStackTrace&&Error.captureStackTrace(e,W),!t)throw e;return e},Nr=function(r,n,t,e){var i=r.length,a=e?e.length:0;if(!i||n.f&&!n.l)return t||new I(0);var f=!t,c=f||n.i!=2,p=n.i;f&&(t=new I(i*3));var x=function(nr){var tr=t.length;if(nr>tr){var _=new I(Math.max(tr*2,nr));_.set(t),t=_}},o=n.f||0,s=n.p||0,u=n.b||0,g=n.l,D=n.d,y=n.m,E=n.n,R=i*8;do{if(!g){o=V(r,s,1);var q=V(r,s+1,3);if(s+=3,q)if(q==1)g=Lr,D=$r,y=9,E=5;else if(q==2){var Z=V(r,s,31)+257,M=V(r,s+10,15)+4,v=Z+V(r,s+5,31)+1;s+=14;for(var h=new I(v),S=new I(19),z=0;z<M;++z)S[pr[z]]=V(r,s+z*3,7);s+=M*3;for(var C=lr(S),X=(1<<C)-1,L=j(S,C,1),z=0;z<v;){var G=L[V(r,s,X)];s+=G&15;var A=G>>4;if(A<16)h[z++]=A;else{var U=0,w=0;for(A==16?(w=3+V(r,s,3),s+=2,U=h[z-1]):A==17?(w=3+V(r,s,7),s+=3):A==18&&(w=11+V(r,s,127),s+=7);w--;)h[z++]=U}}var O=h.subarray(0,Z),F=h.subarray(Z);y=lr(O),E=lr(F),g=j(O,y,1),D=j(F,E,1)}else W(1);else{var A=xr(s)+4,B=r[A-4]|r[A-3]<<8,T=A+B;if(T>i){p&&W(0);break}c&&x(u+B),t.set(r.subarray(A,T),u),n.b=u+=B,n.p=s=T*8,n.f=o;continue}if(s>R){p&&W(0);break}}c&&x(u+131072);for(var rr=(1<<y)-1,N=(1<<E)-1,J=s;;J=s){var U=g[vr(r,s)&rr],P=U>>4;if(s+=U&15,s>R){p&&W(0);break}if(U||W(2),P<256)t[u++]=P;else if(P==256){J=s,g=null;break}else{var $=P-254;if(P>264){var z=P-257,m=fr[z];$=V(r,s,(1<<m)-1)+Fr[z],s+=m}var Y=D[vr(r,s)&N],d=Y>>4;Y||W(3),s+=Y&15;var F=Or[d];if(d>3){var m=hr[d];F+=vr(r,s)&(1<<m)-1,s+=m}if(s>R){p&&W(0);break}c&&x(u+131072);var b=u+$;if(u<F){var or=a-F,sr=Math.min(F,b);for(or+u<0&&W(3);u<sr;++u)t[u]=e[or+u]}for(;u<b;++u)t[u]=t[u-F]}}n.l=g,n.p=J,n.b=u,n.f=o,g&&(o=1,n.m=y,n.d=D,n.n=E)}while(!o);return u!=t.length&&f?Tr(t,0,u):t.subarray(0,u)},Q=function(r,n,t){t<<=n&7;var e=n/8|0;r[e]|=t,r[e+1]|=t>>8},er=function(r,n,t){t<<=n&7;var e=n/8|0;r[e]|=t,r[e+1]|=t>>8,r[e+2]|=t>>16},cr=function(r,n){for(var t=[],e=0;e<r.length;++e)r[e]&&t.push({s:e,f:r[e]});var i=t.length,a=t.slice();if(!i)return{t:Ir,l:0};if(i==1){var f=new I(t[0].s+1);return f[t[0].s]=1,{t:f,l:1}}t.sort(function(T,Z){return T.f-Z.f}),t.push({s:-1,f:25001});var c=t[0],p=t[1],x=0,o=1,s=2;for(t[0]={s:-1,f:c.f+p.f,l:c,r:p};o!=i-1;)c=t[t[x].f<t[s].f?x++:s++],p=t[x!=o&&t[x].f<t[s].f?x++:s++],t[o++]={s:-1,f:c.f+p.f,l:c,r:p};for(var u=a[0].s,e=1;e<i;++e)a[e].s>u&&(u=a[e].s);var g=new H(u+1),D=wr(t[o-1],g,0);if(D>n){var e=0,y=0,E=D-n,R=1<<E;for(a.sort(function(Z,M){return g[M.s]-g[Z.s]||Z.f-M.f});e<i;++e){var q=a[e].s;if(g[q]>n)y+=R-(1<<D-g[q]),g[q]=n;else break}for(y>>=E;y>0;){var A=a[e].s;g[A]<n?y-=1<<n-g[A]++-1:++e}for(;e>=0&&y;--e){var B=a[e].s;g[B]==n&&(--g[B],++y)}D=n}return{t:new I(g),l:D}},wr=function(r,n,t){return r.s==-1?Math.max(wr(r.l,n,t+1),wr(r.r,n,t+1)):n[r.s]=t},Ar=function(r){for(var n=r.length;n&&!r[--n];);for(var t=new H(++n),e=0,i=r[0],a=1,f=function(p){t[e++]=p},c=1;c<=n;++c)if(r[c]==i&&c!=n)++a;else{if(!i&&a>2){for(;a>138;a-=138)f(32754);a>2&&(f(a>10?a-11<<5|28690:a-3<<5|12305),a=0)}else if(a>3){for(f(i),--a;a>6;a-=6)f(8304);a>2&&(f(a-3<<5|8208),a=0)}for(;a--;)f(i);a=1,i=r[c]}return{c:t.subarray(0,e),n}},ir=function(r,n){for(var t=0,e=0;e<n.length;++e)t+=r[e]*n[e];return t},Cr=function(r,n,t){var e=t.length,i=xr(n+2);r[i]=e&255,r[i+1]=e>>8,r[i+2]=r[i]^255,r[i+3]=r[i+1]^255;for(var a=0;a<e;++a)r[i+a+4]=t[a];return(i+4+e)*8},Mr=function(r,n,t,e,i,a,f,c,p,x,o){Q(n,o++,t),++i[256];for(var s=cr(i,15),u=s.t,g=s.l,D=cr(a,15),y=D.t,E=D.l,R=Ar(u),q=R.c,A=R.n,B=Ar(y),T=B.c,Z=B.n,M=new H(19),v=0;v<q.length;++v)++M[q[v]&31];for(var v=0;v<T.length;++v)++M[T[v]&31];for(var h=cr(M,7),S=h.t,z=h.l,C=19;C>4&&!S[pr[C-1]];--C);var X=x+5<<3,L=ir(i,k)+ir(a,ar)+f,G=ir(i,u)+ir(a,y)+f+14+3*C+ir(M,S)+2*M[16]+3*M[17]+7*M[18];if(p>=0&&X<=L&&X<=G)return Cr(n,o,r.subarray(p,p+x));var U,w,O,F;if(Q(n,o,1+(G<L)),o+=2,G<L){U=j(u,g,0),w=u,O=j(y,E,0),F=y;var rr=j(S,z,0);Q(n,o,A-257),Q(n,o+5,Z-1),Q(n,o+10,C-4),o+=14;for(var v=0;v<C;++v)Q(n,o+3*v,S[pr[v]]);o+=3*C;for(var N=[q,T],J=0;J<2;++J)for(var P=N[J],v=0;v<P.length;++v){var $=P[v]&31;Q(n,o,rr[$]),o+=S[$],$>15&&(Q(n,o,P[v]>>5&127),o+=P[v]>>12)}}else U=qr,w=k,O=Pr,F=ar;for(var v=0;v<c;++v){var m=e[v];if(m>255){var $=m>>18&31;er(n,o,U[$+257]),o+=w[$+257],$>7&&(Q(n,o,m>>23&31),o+=fr[$]);var Y=m&31;er(n,o,O[Y]),o+=F[Y],Y>3&&(er(n,o,m>>5&8191),o+=hr[Y])}else er(n,o,U[m]),o+=w[m]}return er(n,o,U[256]),o+w[256]},Rr=new mr([65540,131080,131088,131104,262176,1048704,1048832,2114560,2117632]),Ir=new I(0),Vr=function(r,n,t,e,i,a){var f=a.z||r.length,c=new I(e+f+5*(1+Math.ceil(f/7e3))+i),p=c.subarray(e,c.length-i),x=a.l,o=(a.r||0)&7;if(n){o&&(p[0]=a.r>>3);for(var s=Rr[n-1],u=s>>13,g=s&8191,D=(1<<t)-1,y=a.p||new H(32768),E=a.h||new H(D+1),R=Math.ceil(t/3),q=2*R,A=function(ur){return(r[ur]^r[ur+1]<<R^r[ur+2]<<q)&D},B=new mr(25e3),T=new H(288),Z=new H(32),M=0,v=0,h=a.i||0,S=0,z=a.w||0,C=0;h+2<f;++h){var X=A(h),L=h&32767,G=E[X];if(y[L]=G,E[X]=L,z<=h){var U=f-h;if((M>7e3||S>24576)&&(U>423||!x)){o=Mr(r,p,0,B,T,Z,v,S,C,h-C,o),S=M=v=0,C=h;for(var w=0;w<286;++w)T[w]=0;for(var w=0;w<30;++w)Z[w]=0}var O=2,F=0,rr=g,N=L-G&32767;if(U>2&&X==A(h-N))for(var J=Math.min(u,U)-1,P=Math.min(32767,h),$=Math.min(258,U);N<=P&&--rr&&L!=G;){if(r[h+O]==r[h+O-N]){for(var m=0;m<$&&r[h+m]==r[h+m-N];++m);if(m>O){if(O=m,F=N,m>J)break;for(var Y=Math.min(N,m-2),d=0,w=0;w<Y;++w){var b=h-N+w&32767,or=y[b],sr=b-or&32767;sr>d&&(d=sr,G=b)}}}L=G,G=y[L],N+=L-G&32767}if(F){B[S++]=268435456|gr[O]<<18|zr[F];var nr=gr[O]&31,tr=zr[F]&31;v+=fr[nr]+hr[tr],++T[257+nr],++Z[tr],z=h+O,++M}else B[S++]=r[h],++T[r[h]]}}for(h=Math.max(h,z);h<f;++h)B[S++]=r[h],++T[r[h]];o=Mr(r,p,x,B,T,Z,v,S,C,h-C,o),x||(a.r=o&7|p[o/8|0]<<3,o-=7,a.h=E,a.p=y,a.i=h,a.w=z)}else{for(var h=a.w||0;h<f+x;h+=65535){var _=h+65535;_>=f&&(p[o/8|0]=x,_=f),o=Cr(p,o+1,r.subarray(h,_))}a.i=f}return Tr(c,0,e+xr(o)+i)};var Br=function(){var r=1,n=0;return{p:function(t){for(var e=r,i=n,a=t.length|0,f=0;f!=a;){for(var c=Math.min(f+2655,a);f<c;++f)i+=e+=t[f];e=(e&65535)+15*(e>>16),i=(i&65535)+15*(i>>16)}r=e,n=i},d:function(){return r%=65521,n%=65521,(r&255)<<24|(r&65280)<<8|(n&255)<<8|n>>8}}},Wr=function(r,n,t,e,i){if(!i&&(i={l:1},n.dictionary)){var a=n.dictionary.subarray(-32768),f=new I(a.length+r.length);f.set(a),f.set(r,a.length),r=f,i.w=a.length}return Vr(r,n.level==null?6:n.level,n.mem==null?i.l?Math.ceil(Math.max(8,Math.min(13,Math.log(r.length)))*1.5):20:12+n.mem,t,e,i)};var Zr=function(r,n,t){for(;t;++n)r[n]=t,t>>>=8};var Yr=function(r,n){var t=n.level,e=t==0?0:t<6?1:t==9?3:2;if(r[0]=120,r[1]=e<<6|(n.dictionary&&32),r[1]|=31-(r[0]<<8|r[1])%31,n.dictionary){var i=Br();i.p(n.dictionary),Zr(r,2,i.d())}},jr=function(r,n){return((r[0]&15)!=8||r[0]>>4>7||(r[0]<<8|r[1])%31)&&W(6,"invalid zlib data"),(r[1]>>5&1)==+!n&&W(6,"invalid zlib data: "+(r[1]&32?"need":"unexpected")+" dictionary"),(r[1]>>3&4)+2};function Er(r,n){n||(n={});var t=Br();t.p(r);var e=Wr(r,n,n.dictionary?6:2,4);return Yr(e,n),Zr(e,e.length-4,t.d()),e}function Gr(r,n){return Nr(r.subarray(jr(r,n&&n.dictionary),-4),{i:2},n&&n.out,n&&n.dictionary)}var Jr=typeof TextDecoder<"u"&&new TextDecoder,Kr=0;try{Jr.decode(Ir,{stream:!0}),Kr=1}catch{}function kr(r){return Er(r,{level:6})}function dr(r){return Gr(r)}export{dr as unzlib,kr as zlib};
+// node_modules/fflate/esm/browser.js
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i32 = Int32Array;
+var fleb = new u8([
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  5,
+  5,
+  5,
+  5,
+  0,
+  /* unused */
+  0,
+  0,
+  /* impossible */
+  0
+]);
+var fdeb = new u8([
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  12,
+  13,
+  13,
+  /* unused */
+  0,
+  0
+]);
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+var freb = function(eb, start) {
+  var b = new u16(31);
+  for (var i = 0; i < 31; ++i) {
+    b[i] = start += 1 << eb[i - 1];
+  }
+  var r = new i32(b[30]);
+  for (var i = 1; i < 30; ++i) {
+    for (var j = b[i]; j < b[i + 1]; ++j) {
+      r[j] = j - b[i] << 5 | i;
+    }
+  }
+  return { b, r };
+};
+var _a = freb(fleb, 2);
+var fl = _a.b;
+var revfl = _a.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
+var revfd = _b.r;
+var rev = new u16(32768);
+for (i = 0; i < 32768; ++i) {
+  x = (i & 43690) >> 1 | (i & 21845) << 1;
+  x = (x & 52428) >> 2 | (x & 13107) << 2;
+  x = (x & 61680) >> 4 | (x & 3855) << 4;
+  rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+}
+var x;
+var i;
+var hMap = function(cd, mb, r) {
+  var s = cd.length;
+  var i = 0;
+  var l = new u16(mb);
+  for (; i < s; ++i) {
+    if (cd[i])
+      ++l[cd[i] - 1];
+  }
+  var le = new u16(mb);
+  for (i = 1; i < mb; ++i) {
+    le[i] = le[i - 1] + l[i - 1] << 1;
+  }
+  var co;
+  if (r) {
+    co = new u16(1 << mb);
+    var rvb = 15 - mb;
+    for (i = 0; i < s; ++i) {
+      if (cd[i]) {
+        var sv = i << 4 | cd[i];
+        var r_1 = mb - cd[i];
+        var v = le[cd[i] - 1]++ << r_1;
+        for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
+          co[rev[v] >> rvb] = sv;
+        }
+      }
+    }
+  } else {
+    co = new u16(s);
+    for (i = 0; i < s; ++i) {
+      if (cd[i]) {
+        co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+      }
+    }
+  }
+  return co;
+};
+var flt = new u8(288);
+for (i = 0; i < 144; ++i)
+  flt[i] = 8;
+var i;
+for (i = 144; i < 256; ++i)
+  flt[i] = 9;
+var i;
+for (i = 256; i < 280; ++i)
+  flt[i] = 7;
+var i;
+for (i = 280; i < 288; ++i)
+  flt[i] = 8;
+var i;
+var fdt = new u8(32);
+for (i = 0; i < 32; ++i)
+  fdt[i] = 5;
+var i;
+var flm = /* @__PURE__ */ hMap(flt, 9, 0);
+var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
+var fdm = /* @__PURE__ */ hMap(fdt, 5, 0);
+var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
+var max = function(a) {
+  var m = a[0];
+  for (var i = 1; i < a.length; ++i) {
+    if (a[i] > m)
+      m = a[i];
+  }
+  return m;
+};
+var bits = function(d, p, m) {
+  var o = p / 8 | 0;
+  return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
+};
+var bits16 = function(d, p) {
+  var o = p / 8 | 0;
+  return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
+};
+var shft = function(p) {
+  return (p + 7) / 8 | 0;
+};
+var slc = function(v, s, e) {
+  if (s == null || s < 0)
+    s = 0;
+  if (e == null || e > v.length)
+    e = v.length;
+  return new u8(v.subarray(s, e));
+};
+var ec = [
+  "unexpected EOF",
+  "invalid block type",
+  "invalid length/literal",
+  "invalid distance",
+  "stream finished",
+  "no stream handler",
+  ,
+  // determined by compression function
+  "no callback",
+  "invalid UTF-8 data",
+  "extra field too long",
+  "date not in range 1980-2099",
+  "filename too long",
+  "stream finishing",
+  "invalid zip data"
+  // determined by unknown compression method
+];
+var err = function(ind, msg, nt) {
+  var e = new Error(msg || ec[ind]);
+  e.code = ind;
+  if (Error.captureStackTrace)
+    Error.captureStackTrace(e, err);
+  if (!nt)
+    throw e;
+  return e;
+};
+var inflt = function(dat, st, buf, dict) {
+  var sl = dat.length, dl = dict ? dict.length : 0;
+  if (!sl || st.f && !st.l)
+    return buf || new u8(0);
+  var noBuf = !buf;
+  var resize = noBuf || st.i != 2;
+  var noSt = st.i;
+  if (noBuf)
+    buf = new u8(sl * 3);
+  var cbuf = function(l2) {
+    var bl = buf.length;
+    if (l2 > bl) {
+      var nbuf = new u8(Math.max(bl * 2, l2));
+      nbuf.set(buf);
+      buf = nbuf;
+    }
+  };
+  var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+  var tbts = sl * 8;
+  do {
+    if (!lm) {
+      final = bits(dat, pos, 1);
+      var type = bits(dat, pos + 1, 3);
+      pos += 3;
+      if (!type) {
+        var s = shft(pos) + 4, l = dat[s - 4] | dat[s - 3] << 8, t = s + l;
+        if (t > sl) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + l);
+        buf.set(dat.subarray(s, t), bt);
+        st.b = bt += l, st.p = pos = t * 8, st.f = final;
+        continue;
+      } else if (type == 1)
+        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+      else if (type == 2) {
+        var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+        var tl = hLit + bits(dat, pos + 5, 31) + 1;
+        pos += 14;
+        var ldt = new u8(tl);
+        var clt = new u8(19);
+        for (var i = 0; i < hcLen; ++i) {
+          clt[clim[i]] = bits(dat, pos + i * 3, 7);
+        }
+        pos += hcLen * 3;
+        var clb = max(clt), clbmsk = (1 << clb) - 1;
+        var clm = hMap(clt, clb, 1);
+        for (var i = 0; i < tl; ) {
+          var r = clm[bits(dat, pos, clbmsk)];
+          pos += r & 15;
+          var s = r >> 4;
+          if (s < 16) {
+            ldt[i++] = s;
+          } else {
+            var c = 0, n = 0;
+            if (s == 16)
+              n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+            else if (s == 17)
+              n = 3 + bits(dat, pos, 7), pos += 3;
+            else if (s == 18)
+              n = 11 + bits(dat, pos, 127), pos += 7;
+            while (n--)
+              ldt[i++] = c;
+          }
+        }
+        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+        lbt = max(lt);
+        dbt = max(dt);
+        lm = hMap(lt, lbt, 1);
+        dm = hMap(dt, dbt, 1);
+      } else
+        err(1);
+      if (pos > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+    }
+    if (resize)
+      cbuf(bt + 131072);
+    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+    var lpos = pos;
+    for (; ; lpos = pos) {
+      var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+      pos += c & 15;
+      if (pos > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+      if (!c)
+        err(2);
+      if (sym < 256)
+        buf[bt++] = sym;
+      else if (sym == 256) {
+        lpos = pos, lm = null;
+        break;
+      } else {
+        var add = sym - 254;
+        if (sym > 264) {
+          var i = sym - 257, b = fleb[i];
+          add = bits(dat, pos, (1 << b) - 1) + fl[i];
+          pos += b;
+        }
+        var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+        if (!d)
+          err(3);
+        pos += d & 15;
+        var dt = fd[dsym];
+        if (dsym > 3) {
+          var b = fdeb[dsym];
+          dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+        }
+        if (pos > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + 131072);
+        var end = bt + add;
+        if (bt < dt) {
+          var shift = dl - dt, dend = Math.min(dt, end);
+          if (shift + bt < 0)
+            err(3);
+          for (; bt < dend; ++bt)
+            buf[bt] = dict[shift + bt];
+        }
+        for (; bt < end; ++bt)
+          buf[bt] = buf[bt - dt];
+      }
+    }
+    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+    if (lm)
+      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+  } while (!final);
+  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+var wbits = function(d, p, v) {
+  v <<= p & 7;
+  var o = p / 8 | 0;
+  d[o] |= v;
+  d[o + 1] |= v >> 8;
+};
+var wbits16 = function(d, p, v) {
+  v <<= p & 7;
+  var o = p / 8 | 0;
+  d[o] |= v;
+  d[o + 1] |= v >> 8;
+  d[o + 2] |= v >> 16;
+};
+var hTree = function(d, mb) {
+  var t = [];
+  for (var i = 0; i < d.length; ++i) {
+    if (d[i])
+      t.push({ s: i, f: d[i] });
+  }
+  var s = t.length;
+  var t2 = t.slice();
+  if (!s)
+    return { t: et, l: 0 };
+  if (s == 1) {
+    var v = new u8(t[0].s + 1);
+    v[t[0].s] = 1;
+    return { t: v, l: 1 };
+  }
+  t.sort(function(a, b) {
+    return a.f - b.f;
+  });
+  t.push({ s: -1, f: 25001 });
+  var l = t[0], r = t[1], i0 = 0, i1 = 1, i2 = 2;
+  t[0] = { s: -1, f: l.f + r.f, l, r };
+  while (i1 != s - 1) {
+    l = t[t[i0].f < t[i2].f ? i0++ : i2++];
+    r = t[i0 != i1 && t[i0].f < t[i2].f ? i0++ : i2++];
+    t[i1++] = { s: -1, f: l.f + r.f, l, r };
+  }
+  var maxSym = t2[0].s;
+  for (var i = 1; i < s; ++i) {
+    if (t2[i].s > maxSym)
+      maxSym = t2[i].s;
+  }
+  var tr = new u16(maxSym + 1);
+  var mbt = ln(t[i1 - 1], tr, 0);
+  if (mbt > mb) {
+    var i = 0, dt = 0;
+    var lft = mbt - mb, cst = 1 << lft;
+    t2.sort(function(a, b) {
+      return tr[b.s] - tr[a.s] || a.f - b.f;
+    });
+    for (; i < s; ++i) {
+      var i2_1 = t2[i].s;
+      if (tr[i2_1] > mb) {
+        dt += cst - (1 << mbt - tr[i2_1]);
+        tr[i2_1] = mb;
+      } else
+        break;
+    }
+    dt >>= lft;
+    while (dt > 0) {
+      var i2_2 = t2[i].s;
+      if (tr[i2_2] < mb)
+        dt -= 1 << mb - tr[i2_2]++ - 1;
+      else
+        ++i;
+    }
+    for (; i >= 0 && dt; --i) {
+      var i2_3 = t2[i].s;
+      if (tr[i2_3] == mb) {
+        --tr[i2_3];
+        ++dt;
+      }
+    }
+    mbt = mb;
+  }
+  return { t: new u8(tr), l: mbt };
+};
+var ln = function(n, l, d) {
+  return n.s == -1 ? Math.max(ln(n.l, l, d + 1), ln(n.r, l, d + 1)) : l[n.s] = d;
+};
+var lc = function(c) {
+  var s = c.length;
+  while (s && !c[--s])
+    ;
+  var cl = new u16(++s);
+  var cli = 0, cln = c[0], cls = 1;
+  var w = function(v) {
+    cl[cli++] = v;
+  };
+  for (var i = 1; i <= s; ++i) {
+    if (c[i] == cln && i != s)
+      ++cls;
+    else {
+      if (!cln && cls > 2) {
+        for (; cls > 138; cls -= 138)
+          w(32754);
+        if (cls > 2) {
+          w(cls > 10 ? cls - 11 << 5 | 28690 : cls - 3 << 5 | 12305);
+          cls = 0;
+        }
+      } else if (cls > 3) {
+        w(cln), --cls;
+        for (; cls > 6; cls -= 6)
+          w(8304);
+        if (cls > 2)
+          w(cls - 3 << 5 | 8208), cls = 0;
+      }
+      while (cls--)
+        w(cln);
+      cls = 1;
+      cln = c[i];
+    }
+  }
+  return { c: cl.subarray(0, cli), n: s };
+};
+var clen = function(cf, cl) {
+  var l = 0;
+  for (var i = 0; i < cl.length; ++i)
+    l += cf[i] * cl[i];
+  return l;
+};
+var wfblk = function(out, pos, dat) {
+  var s = dat.length;
+  var o = shft(pos + 2);
+  out[o] = s & 255;
+  out[o + 1] = s >> 8;
+  out[o + 2] = out[o] ^ 255;
+  out[o + 3] = out[o + 1] ^ 255;
+  for (var i = 0; i < s; ++i)
+    out[o + i + 4] = dat[i];
+  return (o + 4 + s) * 8;
+};
+var wblk = function(dat, out, final, syms, lf, df, eb, li, bs, bl, p) {
+  wbits(out, p++, final);
+  ++lf[256];
+  var _a2 = hTree(lf, 15), dlt = _a2.t, mlb = _a2.l;
+  var _b2 = hTree(df, 15), ddt = _b2.t, mdb = _b2.l;
+  var _c = lc(dlt), lclt = _c.c, nlc = _c.n;
+  var _d = lc(ddt), lcdt = _d.c, ndc = _d.n;
+  var lcfreq = new u16(19);
+  for (var i = 0; i < lclt.length; ++i)
+    ++lcfreq[lclt[i] & 31];
+  for (var i = 0; i < lcdt.length; ++i)
+    ++lcfreq[lcdt[i] & 31];
+  var _e = hTree(lcfreq, 7), lct = _e.t, mlcb = _e.l;
+  var nlcc = 19;
+  for (; nlcc > 4 && !lct[clim[nlcc - 1]]; --nlcc)
+    ;
+  var flen = bl + 5 << 3;
+  var ftlen = clen(lf, flt) + clen(df, fdt) + eb;
+  var dtlen = clen(lf, dlt) + clen(df, ddt) + eb + 14 + 3 * nlcc + clen(lcfreq, lct) + 2 * lcfreq[16] + 3 * lcfreq[17] + 7 * lcfreq[18];
+  if (bs >= 0 && flen <= ftlen && flen <= dtlen)
+    return wfblk(out, p, dat.subarray(bs, bs + bl));
+  var lm, ll, dm, dl;
+  wbits(out, p, 1 + (dtlen < ftlen)), p += 2;
+  if (dtlen < ftlen) {
+    lm = hMap(dlt, mlb, 0), ll = dlt, dm = hMap(ddt, mdb, 0), dl = ddt;
+    var llm = hMap(lct, mlcb, 0);
+    wbits(out, p, nlc - 257);
+    wbits(out, p + 5, ndc - 1);
+    wbits(out, p + 10, nlcc - 4);
+    p += 14;
+    for (var i = 0; i < nlcc; ++i)
+      wbits(out, p + 3 * i, lct[clim[i]]);
+    p += 3 * nlcc;
+    var lcts = [lclt, lcdt];
+    for (var it = 0; it < 2; ++it) {
+      var clct = lcts[it];
+      for (var i = 0; i < clct.length; ++i) {
+        var len = clct[i] & 31;
+        wbits(out, p, llm[len]), p += lct[len];
+        if (len > 15)
+          wbits(out, p, clct[i] >> 5 & 127), p += clct[i] >> 12;
+      }
+    }
+  } else {
+    lm = flm, ll = flt, dm = fdm, dl = fdt;
+  }
+  for (var i = 0; i < li; ++i) {
+    var sym = syms[i];
+    if (sym > 255) {
+      var len = sym >> 18 & 31;
+      wbits16(out, p, lm[len + 257]), p += ll[len + 257];
+      if (len > 7)
+        wbits(out, p, sym >> 23 & 31), p += fleb[len];
+      var dst = sym & 31;
+      wbits16(out, p, dm[dst]), p += dl[dst];
+      if (dst > 3)
+        wbits16(out, p, sym >> 5 & 8191), p += fdeb[dst];
+    } else {
+      wbits16(out, p, lm[sym]), p += ll[sym];
+    }
+  }
+  wbits16(out, p, lm[256]);
+  return p + ll[256];
+};
+var deo = /* @__PURE__ */ new i32([65540, 131080, 131088, 131104, 262176, 1048704, 1048832, 2114560, 2117632]);
+var et = /* @__PURE__ */ new u8(0);
+var dflt = function(dat, lvl, plvl, pre, post, st) {
+  var s = st.z || dat.length;
+  var o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7e3)) + post);
+  var w = o.subarray(pre, o.length - post);
+  var lst = st.l;
+  var pos = (st.r || 0) & 7;
+  if (lvl) {
+    if (pos)
+      w[0] = st.r >> 3;
+    var opt = deo[lvl - 1];
+    var n = opt >> 13, c = opt & 8191;
+    var msk_1 = (1 << plvl) - 1;
+    var prev = st.p || new u16(32768), head = st.h || new u16(msk_1 + 1);
+    var bs1_1 = Math.ceil(plvl / 3), bs2_1 = 2 * bs1_1;
+    var hsh = function(i2) {
+      return (dat[i2] ^ dat[i2 + 1] << bs1_1 ^ dat[i2 + 2] << bs2_1) & msk_1;
+    };
+    var syms = new i32(25e3);
+    var lf = new u16(288), df = new u16(32);
+    var lc_1 = 0, eb = 0, i = st.i || 0, li = 0, wi = st.w || 0, bs = 0;
+    for (; i + 2 < s; ++i) {
+      var hv = hsh(i);
+      var imod = i & 32767, pimod = head[hv];
+      prev[imod] = pimod;
+      head[hv] = imod;
+      if (wi <= i) {
+        var rem = s - i;
+        if ((lc_1 > 7e3 || li > 24576) && (rem > 423 || !lst)) {
+          pos = wblk(dat, w, 0, syms, lf, df, eb, li, bs, i - bs, pos);
+          li = lc_1 = eb = 0, bs = i;
+          for (var j = 0; j < 286; ++j)
+            lf[j] = 0;
+          for (var j = 0; j < 30; ++j)
+            df[j] = 0;
+        }
+        var l = 2, d = 0, ch_1 = c, dif = imod - pimod & 32767;
+        if (rem > 2 && hv == hsh(i - dif)) {
+          var maxn = Math.min(n, rem) - 1;
+          var maxd = Math.min(32767, i);
+          var ml = Math.min(258, rem);
+          while (dif <= maxd && --ch_1 && imod != pimod) {
+            if (dat[i + l] == dat[i + l - dif]) {
+              var nl = 0;
+              for (; nl < ml && dat[i + nl] == dat[i + nl - dif]; ++nl)
+                ;
+              if (nl > l) {
+                l = nl, d = dif;
+                if (nl > maxn)
+                  break;
+                var mmd = Math.min(dif, nl - 2);
+                var md = 0;
+                for (var j = 0; j < mmd; ++j) {
+                  var ti = i - dif + j & 32767;
+                  var pti = prev[ti];
+                  var cd = ti - pti & 32767;
+                  if (cd > md)
+                    md = cd, pimod = ti;
+                }
+              }
+            }
+            imod = pimod, pimod = prev[imod];
+            dif += imod - pimod & 32767;
+          }
+        }
+        if (d) {
+          syms[li++] = 268435456 | revfl[l] << 18 | revfd[d];
+          var lin = revfl[l] & 31, din = revfd[d] & 31;
+          eb += fleb[lin] + fdeb[din];
+          ++lf[257 + lin];
+          ++df[din];
+          wi = i + l;
+          ++lc_1;
+        } else {
+          syms[li++] = dat[i];
+          ++lf[dat[i]];
+        }
+      }
+    }
+    for (i = Math.max(i, wi); i < s; ++i) {
+      syms[li++] = dat[i];
+      ++lf[dat[i]];
+    }
+    pos = wblk(dat, w, lst, syms, lf, df, eb, li, bs, i - bs, pos);
+    if (!lst) {
+      st.r = pos & 7 | w[pos / 8 | 0] << 3;
+      pos -= 7;
+      st.h = head, st.p = prev, st.i = i, st.w = wi;
+    }
+  } else {
+    for (var i = st.w || 0; i < s + lst; i += 65535) {
+      var e = i + 65535;
+      if (e >= s) {
+        w[pos / 8 | 0] = lst;
+        e = s;
+      }
+      pos = wfblk(w, pos + 1, dat.subarray(i, e));
+    }
+    st.i = s;
+  }
+  return slc(o, 0, pre + shft(pos) + post);
+};
+var adler = function() {
+  var a = 1, b = 0;
+  return {
+    p: function(d) {
+      var n = a, m = b;
+      var l = d.length | 0;
+      for (var i = 0; i != l; ) {
+        var e = Math.min(i + 2655, l);
+        for (; i < e; ++i)
+          m += n += d[i];
+        n = (n & 65535) + 15 * (n >> 16), m = (m & 65535) + 15 * (m >> 16);
+      }
+      a = n, b = m;
+    },
+    d: function() {
+      a %= 65521, b %= 65521;
+      return (a & 255) << 24 | (a & 65280) << 8 | (b & 255) << 8 | b >> 8;
+    }
+  };
+};
+var dopt = function(dat, opt, pre, post, st) {
+  if (!st) {
+    st = { l: 1 };
+    if (opt.dictionary) {
+      var dict = opt.dictionary.subarray(-32768);
+      var newDat = new u8(dict.length + dat.length);
+      newDat.set(dict);
+      newDat.set(dat, dict.length);
+      dat = newDat;
+      st.w = dict.length;
+    }
+  }
+  return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20 : 12 + opt.mem, pre, post, st);
+};
+var wbytes = function(d, b, v) {
+  for (; v; ++b)
+    d[b] = v, v >>>= 8;
+};
+var zlh = function(c, o) {
+  var lv = o.level, fl2 = lv == 0 ? 0 : lv < 6 ? 1 : lv == 9 ? 3 : 2;
+  c[0] = 120, c[1] = fl2 << 6 | (o.dictionary && 32);
+  c[1] |= 31 - (c[0] << 8 | c[1]) % 31;
+  if (o.dictionary) {
+    var h = adler();
+    h.p(o.dictionary);
+    wbytes(c, 2, h.d());
+  }
+};
+var zls = function(d, dict) {
+  if ((d[0] & 15) != 8 || d[0] >> 4 > 7 || (d[0] << 8 | d[1]) % 31)
+    err(6, "invalid zlib data");
+  if ((d[1] >> 5 & 1) == +!dict)
+    err(6, "invalid zlib data: " + (d[1] & 32 ? "need" : "unexpected") + " dictionary");
+  return (d[1] >> 3 & 4) + 2;
+};
+function zlibSync(data, opts) {
+  if (!opts)
+    opts = {};
+  var a = adler();
+  a.p(data);
+  var d = dopt(data, opts, opts.dictionary ? 6 : 2, 4);
+  return zlh(d, opts), wbytes(d, d.length - 4, a.d()), d;
+}
+function unzlibSync(data, opts) {
+  return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+var tds = 0;
+try {
+  td.decode(et, { stream: true });
+  tds = 1;
+} catch (e) {
+}
+
+// scripts/fflate-entry.ts
+function zlib(data) {
+  return zlibSync(data, { level: 6 });
+}
+function unzlib(data) {
+  return unzlibSync(data);
+}
+export {
+  unzlib,
+  zlib
+};

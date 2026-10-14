@@ -1,1 +1,7 @@
-import{a}from"./chunk-WJVMGKZU.js";import"./chunk-2VCCM6FY.js";export{a as texCalligraphic};
+import {
+  texCalligraphic
+} from "./chunk-5U6YMGPZ.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  texCalligraphic
+};

@@ -1,1 +1,7 @@
-import{a}from"./chunk-P33OSJBY.js";import"./chunk-2VCCM6FY.js";export{a as boldItalic};
+import {
+  boldItalic
+} from "./chunk-SVSUOSQO.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  boldItalic
+};

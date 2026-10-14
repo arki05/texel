@@ -1,1 +1,7 @@
-import{a}from"./chunk-PKR2I5J2.js";import"./chunk-2VCCM6FY.js";export{a as smallop};
+import {
+  smallop
+} from "./chunk-6ME5W25R.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  smallop
+};

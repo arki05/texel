@@ -1,1 +1,7 @@
-import{a}from"./chunk-S5MNRKBO.js";import"./chunk-2VCCM6FY.js";export{a as italic};
+import {
+  italic
+} from "./chunk-BQIVM5LR.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  italic
+};

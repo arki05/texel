@@ -45,7 +45,10 @@ async function vendor({ pkg, url, holder, license, entry, out, uses, more = [] }
     format: 'esm',
     platform: 'neutral',
     mainFields: ['module', 'main'],
-    minify: true,
+    // Not minified: the plugin directory reviews a mod's source, and reads a
+    // bundle only when it is laid out as code, a statement to a line. Every
+    // file still stays under MAX_FILE.
+    minify: false,
     // Modern JavaScript, so classes stay classes: no helper reaching for
     // __proto__, as code compiled to ES5 carries.
     target: 'es2022',
@@ -90,7 +93,7 @@ The files here are ${pkg} ${version} (${url}), Copyright ${holder},
 licensed under the ${license} (LICENSE here).
 
 They are generated, not edited: \`npm run build:vendor\` bundles the part of it
-texel uses (scripts/${entry}: ${uses}) with esbuild into minified ES modules.
+texel uses (scripts/${entry}: ${uses}) with esbuild into ES modules, laid out as code and not minified.
 texel's own code in scripts/${entry} is MIT like the rest of texel.
 `,
   )

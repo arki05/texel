@@ -1,1 +1,7 @@
-import{a}from"./chunk-EJEDBEZL.js";import"./chunk-2VCCM6FY.js";export{a as fraktur};
+import {
+  fraktur
+} from "./chunk-2R2D7V74.js";
+import "./chunk-JNRU6QI4.js";
+export {
+  fraktur
+};

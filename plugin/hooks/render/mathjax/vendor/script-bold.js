@@ -1,1 +1,6 @@
-import{a}from"./chunk-FLO3NQBP.js";export{a as scriptBold};
+import {
+  scriptBold
+} from "./chunk-URQEXPK7.js";
+export {
+  scriptBold
+};
